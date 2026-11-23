@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { Navbar } from './components/Navbar.tsx';
 import { Footer } from './components/Footer.tsx';
 import { CartDrawer } from './components/CartDrawer.tsx';
@@ -280,6 +281,7 @@ export default function App() {
 
         <Footer onNavigate={navigate} />
       </div>
+      <Analytics />
     </CartProvider>
   );
 }
