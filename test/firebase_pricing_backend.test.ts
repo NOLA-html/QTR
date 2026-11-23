@@ -58,7 +58,7 @@ test('Firebase Centre Com Product Pricing Backend Tests', async (t) => {
 
     assert.equal(updated.priceAUD, testPrice);
     assert.equal(updated.lastKnownPriceAUD, testPrice);
-    assert.equal(updated.status, 'active');
+    assert.equal(updated.status, sample.published ? 'active' : 'needs_review');
     assert.equal(updated.manuallyVerifiedBy, 'TestAdmin');
     assert.equal(updated.manualVerificationNote, 'Unit test manual verification audit');
 

@@ -18,21 +18,65 @@ import {
   Boxes,
   Eye,
   ExternalLink,
-  Tag
+  Tag,
+  Users,
+  Pencil,
+  Trash2,
+  LogOut,
+  X
 } from 'lucide-react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../firebase.ts';
+import {
+  ADMIN_EMAIL,
+  signInAdminForFirestore,
+  signOutAdminFromFirestore
+} from '../utils/firestoreSync.ts';
+import { getAdminAuthHeaders } from '../utils/adminAuthHeaders.ts';
+import { GoogleSignInButton } from '../components/GoogleSignInButton.tsx';
 import { BUILDER_PARTS, BuilderPart, getPartCentreComUrl } from '../data/builderCatalog.ts';
 import { formatAud } from '../utils/pricing.ts';
 import { CentreComPriceManager } from '../components/CentreComPriceManager.tsx';
+import { AdminOrderOperationsModal } from '../components/AdminOrderOperationsModal.tsx';
+import { AdminPartsProcurementTab } from '../components/AdminPartsProcurementTab.tsx';
+import { AdminAssemblyPackagesTab } from '../components/AdminAssemblyPackagesTab.tsx';
+import { ORDER_STAGES, PART_ITEM_STATUSES, computePartsReadiness } from '../../server/orderLogic.ts';
 
 export const AdminPage: React.FC = () => {
-  const [passkey, setPasskey] = useState('');
+  const [authReady, setAuthReady] = useState(false);
+  const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'orders' | 'priceMatches' | 'customerMotherboards' | 'shipping' | 'reviews' | 'repairs' | 'upgrades' | 'pcQuotes' | 'messages' | 'catalog'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'customers' | 'procurement' | 'packages' | 'priceMatches' | 'customerMotherboards' | 'shipping' | 'reviews' | 'repairs' | 'upgrades' | 'pcQuotes' | 'messages' | 'catalog'>('orders');
   const [adminData, setAdminData] = useState<any | null>(null);
   const [metrics, setMetrics] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Customers tab state
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<any | null>(null);
+  const [editCustomerTarget, setEditCustomerTarget] = useState<any | null>(null);
+  const [editCustomerName, setEditCustomerName] = useState('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState('');
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [deleteCustomerTarget, setDeleteCustomerTarget] = useState<any | null>(null);
+  const [deletingCustomer, setDeletingCustomer] = useState(false);
+
+  // Review deletion confirmation modal
+  const [reviewToDelete, setReviewToDelete] = useState<any | null>(null);
+  const [deletingReview, setDeletingReview] = useState(false);
+
+  // Orders search & multi-filter
+  const [orderSearch, setOrderSearch] = useState('');
+  const [orderStageFilter, setOrderStageFilter] = useState('all');
+  const [orderPartStatusFilter, setOrderPartStatusFilter] = useState('all');
+  const [operationsOrderId, setOperationsOrderId] = useState<string | null>(null);
+  const [operationsInitialTab, setOperationsInitialTab] = useState<'stage' | 'parts' | 'testing' | 'notifications'>('stage');
 
   // Customer-supplied motherboard review modal state
   const [selectedMotherboardRecord, setSelectedMotherboardRecord] = useState<any | null>(null);
@@ -57,16 +101,19 @@ export const AdminPage: React.FC = () => {
   const [newNotes, setNewNotes] = useState('');
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  const fetchAdminData = async (key: string) => {
+  const fetchAdminData = async () => {
     setLoading(true);
     setAuthError(null);
+    setActionError(null);
     try {
-      const res = await fetch(`/api/admin/data?adminKey=${encodeURIComponent(key)}`, {
-        headers: { 'x-admin-key': key }
-      });
+      const headers = await getAdminAuthHeaders();
+      const [res, custRes] = await Promise.all([
+        fetch('/api/admin/data', { headers }),
+        fetch('/api/admin/customers', { headers })
+      ]);
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Invalid credentials');
+        throw new Error(data.error || 'Administrator authorization failed');
       }
       setAdminData(data.data);
       setMetrics(data.metrics);
@@ -78,6 +125,10 @@ export const AdminPage: React.FC = () => {
           expressTimeframe: data.data.shippingConfig.expressTimeframe
         });
       }
+      const custData = await custRes.json();
+      if (custRes.ok && custData.success) {
+        setCustomers(custData.customers || []);
+      }
       setIsAuthenticated(true);
     } catch (err: any) {
       setAuthError(err.message || 'Authentication failed');
@@ -87,9 +138,57 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchAdminData(passkey);
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      setAuthReady(true);
+      if (!user) {
+        setAdminEmail(null);
+        setIsAuthenticated(false);
+        setAdminData(null);
+        return;
+      }
+      const email = (user.email || '').trim().toLowerCase();
+      if (!user.emailVerified || email !== ADMIN_EMAIL.toLowerCase()) {
+        await signOutAdminFromFirestore().catch(() => {});
+        setAdminEmail(null);
+        setIsAuthenticated(false);
+        setAuthError(
+          `Access denied for ${email || 'signed-in account'}. Only the authorised administrator Google account (${ADMIN_EMAIL}) is permitted.`
+        );
+        return;
+      }
+      setAdminEmail(email);
+      await fetchAdminData();
+    });
+    return () => unsub();
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setSigningIn(true);
+    setAuthError(null);
+    try {
+      const result = await signInAdminForFirestore();
+      const email = (result.email || '').trim().toLowerCase();
+      if (!result.verified || email !== ADMIN_EMAIL.toLowerCase()) {
+        await signOutAdminFromFirestore().catch(() => {});
+        setIsAuthenticated(false);
+        setAuthError(
+          `Access denied for ${email || 'that Google account'}. Only ${ADMIN_EMAIL} is authorised for QTR Admin access.`
+        );
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'Google Sign-In failed or was cancelled.');
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOutAdminFromFirestore();
+    setIsAuthenticated(false);
+    setAdminData(null);
+    setCustomers([]);
+    setAdminEmail(null);
   };
 
   // Save shipping configuration
@@ -97,23 +196,25 @@ export const AdminPage: React.FC = () => {
     e.preventDefault();
     setSavingShipping(true);
     setShippingSaveSuccess(false);
+    setActionError(null);
     try {
+      const headers = await getAdminAuthHeaders(true);
       const res = await fetch('/api/admin/config/shipping', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': passkey
-        },
+        headers,
         body: JSON.stringify(shippingForm)
       });
       const data = await res.json();
       if (data.success) {
         setShippingSaveSuccess(true);
         setTimeout(() => setShippingSaveSuccess(false), 3000);
-        fetchAdminData(passkey);
+        fetchAdminData();
+      } else {
+        setActionError(data.error || 'Failed to update shipping config');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to update shipping config:', err);
+      setActionError(err.message || 'Failed to update shipping config');
     } finally {
       setSavingShipping(false);
     }
@@ -121,21 +222,23 @@ export const AdminPage: React.FC = () => {
 
   // Toggle review approval
   const toggleReviewApproval = async (id: string, currentApproved: boolean) => {
+    setActionError(null);
     try {
+      const headers = await getAdminAuthHeaders(true);
       const res = await fetch(`/api/admin/reviews/${id}/approve`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': passkey
-        },
+        headers,
         body: JSON.stringify({ approved: !currentApproved })
       });
       const data = await res.json();
       if (data.success) {
-        fetchAdminData(passkey);
+        fetchAdminData();
+      } else {
+        setActionError(data.error || 'Failed to update review');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setActionError(err.message || 'Failed to update review');
     }
   };
 
@@ -144,41 +247,46 @@ export const AdminPage: React.FC = () => {
   const [centreComRefreshMessage, setCentreComRefreshMessage] = useState<string | null>(null);
 
   const handlePriceMatchAction = async (id: string, action: 'pending' | 'approved' | 'rejected' | 'more_info') => {
+    setActionError(null);
     try {
+      const headers = await getAdminAuthHeaders(true);
       const res = await fetch(`/api/admin/cheaper-price-requests/${id}/action`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': passkey
-        },
+        headers,
         body: JSON.stringify({ status: action })
       });
       const data = await res.json();
       if (data.success) {
-        fetchAdminData(passkey);
+        fetchAdminData();
+      } else {
+        setActionError(data.error || 'Failed to update price request');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to update price request', err);
+      setActionError(err.message || 'Failed to update price request');
     }
   };
 
   const handleRefreshCentreCom = async () => {
     setRefreshingCentreCom(true);
     setCentreComRefreshMessage(null);
+    setActionError(null);
     try {
+      const headers = await getAdminAuthHeaders();
       const res = await fetch('/api/admin/centrecom/refresh-prices', {
         method: 'POST',
-        headers: {
-          'x-admin-key': passkey
-        }
+        headers
       });
       const data = await res.json();
       if (data.success) {
         setCentreComRefreshMessage('All component prices confirmed against Centre Com Australian catalogue (AUD incl. GST).');
         setTimeout(() => setCentreComRefreshMessage(null), 4000);
+      } else {
+        setActionError(data.error || 'Failed to refresh Centre Com catalogue');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setActionError(err.message || 'Failed to refresh Centre Com catalogue');
     } finally {
       setRefreshingCentreCom(false);
     }
@@ -186,13 +294,12 @@ export const AdminPage: React.FC = () => {
 
   const handleUpdateMotherboardStatus = async (id: string, status: string, notes?: string) => {
     setUpdatingMoboStatus(true);
+    setActionError(null);
     try {
+      const headers = await getAdminAuthHeaders(true);
       const res = await fetch(`/api/admin/customer-motherboards/${id}/action`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': passkey
-        },
+        headers,
         body: JSON.stringify({
           adminStatus: status,
           adminNotes: notes
@@ -201,32 +308,97 @@ export const AdminPage: React.FC = () => {
       const data = await res.json();
       if (data.success) {
         setSelectedMotherboardRecord(null);
-        fetchAdminData(passkey);
+        setActionSuccess('Customer motherboard bench log saved.');
+        setTimeout(() => setActionSuccess(null), 4000);
+        fetchAdminData();
       } else {
-        alert(data.error || 'Failed to update customer motherboard record');
+        setActionError(data.error || 'Failed to update customer motherboard record');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating motherboard record:', err);
-      alert('Network error while updating motherboard record');
+      setActionError('Network error while updating motherboard record');
     } finally {
       setUpdatingMoboStatus(false);
     }
   };
 
-  // Delete review
-  const deleteReview = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this review?')) return;
+  // Delete review (confirmed via inline React modal)
+  const confirmDeleteReview = async () => {
+    if (!reviewToDelete) return;
+    setDeletingReview(true);
+    setActionError(null);
     try {
-      const res = await fetch(`/api/admin/reviews/${id}`, {
+      const headers = await getAdminAuthHeaders();
+      const res = await fetch(`/api/admin/reviews/${reviewToDelete.id}`, {
         method: 'DELETE',
-        headers: { 'x-admin-key': passkey }
+        headers
       });
       const data = await res.json();
       if (data.success) {
-        fetchAdminData(passkey);
+        setReviewToDelete(null);
+        fetchAdminData();
+      } else {
+        setActionError(data.error || 'Failed to delete review');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setActionError(err.message || 'Failed to delete review');
+    } finally {
+      setDeletingReview(false);
+    }
+  };
+
+  // Customer management handlers
+  const handleSaveCustomerEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editCustomerTarget) return;
+    setSavingCustomer(true);
+    setActionError(null);
+    try {
+      const headers = await getAdminAuthHeaders(true);
+      const res = await fetch(`/api/admin/customers/${encodeURIComponent(editCustomerTarget.email)}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ name: editCustomerName.trim(), phone: editCustomerPhone.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to update customer');
+      }
+      setEditCustomerTarget(null);
+      setActionSuccess(`Updated customer contact details for ${editCustomerTarget.email}.`);
+      setTimeout(() => setActionSuccess(null), 4000);
+      await fetchAdminData();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to update customer');
+    } finally {
+      setSavingCustomer(false);
+    }
+  };
+
+  const handleConfirmDeleteCustomer = async () => {
+    if (!deleteCustomerTarget) return;
+    setDeletingCustomer(true);
+    setActionError(null);
+    try {
+      const headers = await getAdminAuthHeaders();
+      const res = await fetch(`/api/admin/customers/${encodeURIComponent(deleteCustomerTarget.email)}/records`, {
+        method: 'DELETE',
+        headers
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to remove customer records');
+      }
+      setDeleteCustomerTarget(null);
+      setSelectedCustomerDetail(null);
+      setActionSuccess(`Removed ${data.removedCount} record(s) for ${deleteCustomerTarget.email}.`);
+      setTimeout(() => setActionSuccess(null), 4000);
+      await fetchAdminData();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to remove customer records');
+    } finally {
+      setDeletingCustomer(false);
     }
   };
 
@@ -234,6 +406,7 @@ export const AdminPage: React.FC = () => {
   const saveStatusUpdate = async () => {
     if (!selectedRequest && !selectedOrder) return;
     setUpdatingStatus(true);
+    setActionError(null);
     try {
       let endpoint = '';
       if (selectedOrder) {
@@ -244,12 +417,10 @@ export const AdminPage: React.FC = () => {
         endpoint = `/api/admin/upgrades/${selectedRequest.id}/status`;
       }
 
+      const headers = await getAdminAuthHeaders(true);
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': passkey
-        },
+        headers,
         body: JSON.stringify({
           status: newStatus,
           technicianNotes: newNotes
@@ -260,10 +431,13 @@ export const AdminPage: React.FC = () => {
       if (data.success) {
         setSelectedRequest(null);
         setSelectedOrder(null);
-        fetchAdminData(passkey);
+        fetchAdminData();
+      } else {
+        setActionError(data.error || 'Failed to update status');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setActionError(err.message || 'Failed to update status');
     } finally {
       setUpdatingStatus(false);
     }
@@ -281,42 +455,38 @@ export const AdminPage: React.FC = () => {
             <h1 className="font-heading text-2xl font-extrabold text-navy">
               QTR Staff Portal
             </h1>
-            <p className="text-xs text-slate-500 mt-1.5">
-              Enter administrator passkey to access queues, moderate reviews, and update customer repair states.
+            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+              Private workshop dashboard. Sign in with the authorised QTR administrator Google account to manage orders, customers, parts procurement, and the Centre Com catalogue.
             </p>
           </div>
 
           {authError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-md flex items-center gap-2 text-left">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-md flex items-start gap-2 text-left">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{authError}</span>
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <input
-                type="password"
-                required
-                value={passkey}
-                onChange={(e) => setPasskey(e.target.value)}
-                placeholder="Staff Passkey (default: qtr2026)"
-                className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-md focus:border-brand-blue focus:outline-none text-center font-mono"
-              />
+          {!authReady || loading ? (
+            <div className="py-4 flex items-center justify-center gap-2 text-xs font-semibold text-slate-500">
+              <Loader2 className="w-4 h-4 animate-spin text-brand-blue" />
+              <span>Verifying administrator session...</span>
             </div>
+          ) : (
+            <div className="space-y-3">
+              <GoogleSignInButton
+                onClick={handleGoogleSignIn}
+                loading={signingIn}
+                label="Sign in with Google (Admin Only)"
+              />
+              <p className="text-[11px] text-slate-400">
+                Access is strictly restricted on the server via verified Firebase Google ID tokens. Unauthorised Google accounts are automatically blocked.
+              </p>
+            </div>
+          )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-navy hover:bg-navy-800 disabled:opacity-50 text-white font-semibold text-sm py-2.5 rounded-md transition-colors flex items-center justify-center gap-2"
-            >
-              {loading && <Loader2 className="w-4 h-4 animate-spin text-sky-400" />}
-              <span>Unlock Staff Portal</span>
-            </button>
-          </form>
-
-          <div className="text-[11px] text-slate-400">
-            For internal workshop management at 25 Emma St Caulfield South.
+          <div className="text-[11px] text-slate-400 pt-2 border-t border-slate-100">
+            25 Emma St Caulfield South VIC 3162 · QTR Workshop Management
           </div>
         </div>
       </div>
@@ -328,12 +498,13 @@ export const AdminPage: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-heading text-2xl font-extrabold text-navy">
               QTR Workshop Control Panel
             </h1>
-            <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
-              Authenticated
+            <span className="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded font-bold inline-flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>{adminEmail || 'Authenticated Admin'}</span>
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -343,54 +514,109 @@ export const AdminPage: React.FC = () => {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => fetchAdminData(passkey)}
+            onClick={() => fetchAdminData()}
             className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-3 py-2 rounded-lg font-semibold transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
           </button>
           <button
-            onClick={() => setIsAuthenticated(false)}
-            className="text-xs text-rose-600 hover:text-rose-800 font-semibold px-2 py-1"
+            onClick={handleSignOut}
+            className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-800 font-semibold px-2.5 py-1.5 rounded-lg hover:bg-rose-50 transition-colors"
           >
-            Lock Out
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
           </button>
         </div>
       </div>
 
-      {/* Metrics Row */}
+      {/* Inline Feedback Banners */}
+      {actionError && (
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{actionError}</span>
+          </div>
+          <button type="button" onClick={() => setActionError(null)} className="text-rose-500 hover:text-rose-800">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{actionSuccess}</span>
+          </div>
+          <button type="button" onClick={() => setActionSuccess(null)} className="text-emerald-600 hover:text-emerald-900">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Overview Order Pipeline & Workshop KPIs */}
       {metrics && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-          <div className="bg-white p-4 rounded-xl border border-amber-500/30 shadow-xs ring-1 ring-amber-500/20">
-            <div className="text-[11px] font-semibold text-amber-500 uppercase flex items-center gap-1">
-              <ShoppingCart className="w-3 h-3" />
-              <span>PC Orders</span>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+            <div className="bg-white p-3.5 rounded-xl border border-amber-500/30 shadow-xs ring-1 ring-amber-500/20">
+              <div className="text-[10px] font-bold text-amber-600 uppercase">Active Orders</div>
+              <div className="text-2xl font-black text-slate-900 mt-1">{metrics.activeOrders ?? 0}</div>
             </div>
-            <div className="text-2xl font-black text-slate-900 mt-1">{metrics.totalOrders ?? adminData?.pcOrders?.length ?? 0}</div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Waiting Parts</div>
+              <div className="text-2xl font-black text-slate-900 mt-1">{metrics.waitingForParts ?? 0}</div>
+            </div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Parts Ordered</div>
+              <div className="text-2xl font-black text-slate-900 mt-1">{metrics.partsOrdered ?? 0}</div>
+            </div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Parts Received</div>
+              <div className="text-2xl font-black text-emerald-700 mt-1">{metrics.partsReceived ?? 0}</div>
+            </div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Assembling</div>
+              <div className="text-2xl font-black text-sky-700 mt-1">{metrics.assembling ?? 0}</div>
+            </div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Testing / QC</div>
+              <div className="text-2xl font-black text-indigo-700 mt-1">{metrics.testing ?? 0}</div>
+            </div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Ready Dispatch</div>
+              <div className="text-2xl font-black text-amber-600 mt-1">{metrics.readyForDispatch ?? 0}</div>
+            </div>
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="text-[10px] font-bold text-slate-400 uppercase">Completed</div>
+              <div className="text-2xl font-black text-emerald-800 mt-1">{metrics.completedOrders ?? 0}</div>
+            </div>
           </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-            <div className="text-[11px] font-semibold text-slate-400 uppercase">Repairs</div>
-            <div className="text-2xl font-black text-slate-900 mt-1">{metrics.totalRepairs}</div>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-            <div className="text-[11px] font-semibold text-slate-400 uppercase">Upgrades</div>
-            <div className="text-2xl font-black text-slate-900 mt-1">{metrics.totalUpgrades}</div>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-            <div className="text-[11px] font-semibold text-slate-400 uppercase">Custom Builds</div>
-            <div className="text-2xl font-black text-slate-900 mt-1">{metrics.totalCustomPc}</div>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-            <div className="text-[11px] font-semibold text-slate-400 uppercase">Total Reviews</div>
-            <div className="text-2xl font-black text-slate-900 mt-1">{metrics.totalReviews}</div>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-            <div className="text-[11px] font-semibold text-slate-400 uppercase">Pending Approval</div>
-            <div className="text-2xl font-black text-amber-600 mt-1">{metrics.pendingReviewsCount}</div>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-            <div className="text-[11px] font-semibold text-slate-400 uppercase">Messages</div>
-            <div className="text-2xl font-black text-slate-900 mt-1">{metrics.totalMessages}</div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase">Customers</span>
+              <span className="text-base font-black text-slate-900">{customers.length}</span>
+            </div>
+            <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase">Repairs</span>
+              <span className="text-base font-black text-slate-900">{metrics.totalRepairs}</span>
+            </div>
+            <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase">Upgrades</span>
+              <span className="text-base font-black text-slate-900">{metrics.totalUpgrades}</span>
+            </div>
+            <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase">Quotes</span>
+              <span className="text-base font-black text-slate-900">{metrics.totalCustomPc}</span>
+            </div>
+            <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase">Pending Reviews</span>
+              <span className="text-base font-black text-amber-600">{metrics.pendingReviewsCount}</span>
+            </div>
+            <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase">Messages</span>
+              <span className="text-base font-black text-slate-900">{metrics.totalMessages}</span>
+            </div>
           </div>
         </div>
       )}
@@ -407,6 +633,39 @@ export const AdminPage: React.FC = () => {
         >
           <ShoppingCart className="w-3.5 h-3.5" />
           <span>PC Orders ({adminData?.pcOrders?.length || 0})</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('customers')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+            activeTab === 'customers'
+              ? 'border-amber-500 text-amber-600'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Customers ({customers.length})</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('procurement')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+            activeTab === 'procurement'
+              ? 'border-amber-500 text-amber-600'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Boxes className="w-3.5 h-3.5" />
+          <span>Parts Procurement</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('packages')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+            activeTab === 'packages'
+              ? 'border-amber-500 text-amber-600'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Wrench className="w-3.5 h-3.5" />
+          <span>Assembly Packages &amp; Notifications</span>
         </button>
         <button
           onClick={() => setActiveTab('priceMatches')}
@@ -523,122 +782,299 @@ export const AdminPage: React.FC = () => {
       {/* 0. PC ORDERS */}
       {activeTab === 'orders' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <p className="text-xs text-slate-500">
-              Live custom PC build orders placed online. Base PC prices exclude labour and delivery. Labour and delivery are calculated and added at checkout.
-            </p>
-            <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full self-start sm:self-auto">
-              Total Orders: {adminData?.pcOrders?.length || 0}
-            </span>
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200">
+            <input
+              type="text"
+              value={orderSearch}
+              onChange={(e) => setOrderSearch(e.target.value)}
+              placeholder="Search ref #, customer name, email, PC model, or supplier ref..."
+              className="flex-1 rounded-xl border border-slate-200 px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={orderStageFilter}
+                onChange={(e) => setOrderStageFilter(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+              >
+                <option value="all">Stage: All</option>
+                {ORDER_STAGES.map((st) => (
+                  <option key={st} value={st}>{st}</option>
+                ))}
+                <option value="Cancelled">Cancelled</option>
+              </select>
+              <select
+                value={orderPartStatusFilter}
+                onChange={(e) => setOrderPartStatusFilter(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+              >
+                <option value="all">Parts Filter: All</option>
+                {PART_ITEM_STATUSES.map((ps) => (
+                  <option key={ps} value={ps}>Has part: {ps}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {(!adminData?.pcOrders || adminData.pcOrders.length === 0) ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
-              <ShoppingCart className="w-10 h-10 text-slate-300 mx-auto" />
-              <div className="font-bold text-slate-700">No PC Orders Yet</div>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                When customers order Project Eclipse, NITROFORGE X3060, or OVERDRIVE with Fast Build or Full Build &amp; Setup, orders appear here in real time.
+          {(() => {
+            const orders = (adminData?.pcOrders || []).filter((ord: any) => {
+              if (orderStageFilter !== 'all' && ord.status !== orderStageFilter) return false;
+              if (orderPartStatusFilter !== 'all') {
+                const hasPartStatus = (ord.partsList || []).some((p: any) => p.status === orderPartStatusFilter);
+                if (!hasPartStatus) return false;
+              }
+              if (orderSearch.trim()) {
+                const q = orderSearch.toLowerCase();
+                const hay = `${ord.referenceNumber} ${ord.customerName} ${ord.email} ${ord.pcName} ${(ord.partsList || []).map((p: any) => `${p.supplier || ''} ${p.supplierOrderNumber || ''}`).join(' ')}`.toLowerCase();
+                if (!hay.includes(q)) return false;
+              }
+              return true;
+            });
+
+            if (orders.length === 0) {
+              return (
+                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
+                  <ShoppingCart className="w-10 h-10 text-slate-300 mx-auto" />
+                  <div className="font-bold text-slate-700">No Matching PC Orders</div>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Try adjusting the stage/parts filter or search query.
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-xs">
+                <table className="w-full text-left text-xs text-slate-600">
+                  <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[10px] border-b border-slate-200">
+                    <tr>
+                      <th className="p-3.5">Order Ref #</th>
+                      <th className="p-3.5">Customer &amp; Shipping</th>
+                      <th className="p-3.5">Custom PC</th>
+                      <th className="p-3.5">Parts Ready</th>
+                      <th className="p-3.5">Assembly Package</th>
+                      <th className="p-3.5">Total (AUD)</th>
+                      <th className="p-3.5">Stage</th>
+                      <th className="p-3.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {orders.map((ord: any) => {
+                      const readiness = computePartsReadiness(ord.partsList || []);
+                      return (
+                        <tr key={ord.id} className="hover:bg-slate-50/80">
+                          <td className="p-3.5 font-mono font-bold text-amber-500">
+                            {ord.referenceNumber}
+                            <div className="text-[10px] text-slate-400 font-normal">
+                              {new Date(ord.createdAt).toLocaleDateString()}
+                            </div>
+                          </td>
+                          <td className="p-3.5 font-semibold text-slate-900">
+                            {ord.customerName}
+                            <div className="text-[10px] text-slate-400 font-normal">
+                              {ord.email} · {ord.phone}
+                            </div>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="font-bold text-slate-800">{ord.pcName}</div>
+                            <div className="text-[10px] text-slate-500">
+                              Parts: {formatAud(Number(ord.pcBasePrice || 0))}
+                            </div>
+                          </td>
+                          <td className="p-3.5">
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              readiness.allPartsReady
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : readiness.issueCount > 0
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {readiness.receivedCount + readiness.customerSuppliedCount}/{readiness.totalParts} ready
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">
+                              {ord.buildService?.name || ord.buildService?.id} (+${Number(ord.buildService?.price || 0).toFixed(2)})
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="font-black text-slate-900 text-sm">
+                              ${Number(ord.finalTotal).toFixed(2)}
+                            </div>
+                            <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                              ord.paymentStatus === 'Paid'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : ord.paymentStatus === 'Refunded'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {ord.paymentStatus || 'Pending'}
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              ord.status === 'Completed or collected'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : ord.status === 'Cancelled'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-amber-100 text-amber-900'
+                            }`}>
+                              {ord.status}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-right whitespace-nowrap space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOperationsInitialTab('stage');
+                                setOperationsOrderId(ord.id);
+                              }}
+                              className="bg-slate-900 hover:bg-black text-amber-400 border border-amber-500/40 font-bold text-[11px] px-3 py-1.5 rounded-lg shadow-xs"
+                            >
+                              Manage Order
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* 0.05 CUSTOMERS MANAGEMENT */}
+      {activeTab === 'customers' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-amber-500" />
+                <span>Real Customer Profiles &amp; Activity</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Unified genuine customer records derived from orders, repairs, upgrades, quotes, and enquiries. Zero demo data.
               </p>
             </div>
-          ) : (
-            <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-xs">
-              <table className="w-full text-left text-xs text-slate-600">
-                <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[10px] border-b border-slate-200">
-                  <tr>
-                    <th className="p-3.5">Order Ref #</th>
-                    <th className="p-3.5">Customer &amp; Shipping</th>
-                    <th className="p-3.5">Custom PC</th>
-                    <th className="p-3.5">Build Service</th>
-                    <th className="p-3.5">Delivery Method</th>
-                    <th className="p-3.5">Total (AUD)</th>
-                    <th className="p-3.5">Status</th>
-                    <th className="p-3.5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {adminData.pcOrders.map((ord: any) => (
-                    <tr key={ord.id} className="hover:bg-slate-50/80">
-                      <td className="p-3.5 font-mono font-bold text-amber-500">
-                        {ord.referenceNumber}
-                        <div className="text-[10px] text-slate-400 font-normal">
-                          {new Date(ord.createdAt).toLocaleDateString()}
-                        </div>
-                      </td>
-                      <td className="p-3.5 font-semibold text-slate-900">
-                        {ord.customerName}
-                        <div className="text-[10px] text-slate-400 font-normal">
-                          {ord.email} · {ord.phone}
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                          {ord.shippingAddress?.addressLine1}, {ord.shippingAddress?.suburb} {ord.shippingAddress?.state} {ord.shippingAddress?.postcode}
-                        </div>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="font-bold text-slate-800">{ord.pcName}</div>
-                        <div className="text-[10px] text-slate-500">
-                          Parts &amp; Win: ${Number(ord.pcBasePrice).toFixed(2)}
-                        </div>
-                      </td>
-                      <td className="p-3.5">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                          ord.buildService?.id === 'full'
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {ord.buildService?.name || ord.buildService?.id} (+${Number(ord.buildService?.price).toFixed(2)})
-                        </span>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="font-semibold text-slate-800">
-                          {ord.deliveryMethod?.name} (+${Number(ord.deliveryMethod?.price).toFixed(2)})
-                        </div>
-                        <div className="text-[10px] text-slate-400">
-                          {ord.deliveryMethod?.timeframe}
-                        </div>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="font-black text-slate-900 text-sm">
-                          ${Number(ord.finalTotal).toFixed(2)}
-                        </div>
-                        <div className="text-[10px] text-slate-400 uppercase font-bold">
-                          {ord.paymentMethod?.replace('_', ' ')}
-                        </div>
-                      </td>
-                      <td className="p-3.5">
-                        <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                          ord.status === 'Completed'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : ord.status === 'Dispatched'
-                            ? 'bg-indigo-100 text-indigo-800'
-                            : ord.status === 'Assembly in Progress'
-                            ? 'bg-amber-100 text-amber-900'
-                            : ord.status === 'Cancelled'
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {ord.status}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-right">
-                        <button
-                          onClick={() => {
-                            setSelectedOrder(ord);
-                            setSelectedRequest(null);
-                            setNewStatus(ord.status);
-                            setNewNotes(ord.technicianNotes || '');
-                          }}
-                          className="bg-slate-900 hover:bg-black text-amber-400 border border-amber-500/40 font-bold text-[11px] px-3 py-1.5 rounded-lg shadow-xs"
-                        >
-                          Update Status
-                        </button>
-                      </td>
+            <input
+              type="text"
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+              placeholder="Search customer name, email, phone..."
+              className="w-full sm:w-72 rounded-xl border border-slate-200 px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+
+          {(() => {
+            const q = customerSearch.trim().toLowerCase();
+            const list = customers.filter(
+              (c) =>
+                !q ||
+                c.name.toLowerCase().includes(q) ||
+                c.email.toLowerCase().includes(q) ||
+                (c.phone || '').toLowerCase().includes(q)
+            );
+            if (list.length === 0) {
+              return (
+                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-2">
+                  <Users className="w-10 h-10 text-slate-300 mx-auto" />
+                  <div className="font-bold text-slate-700">No Matching Customer Records</div>
+                  <p className="text-xs text-slate-400">Genuine customer profiles appear automatically when submitted through the website.</p>
+                </div>
+              );
+            }
+            return (
+              <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-xs">
+                <table className="w-full text-left text-xs text-slate-600">
+                  <thead className="bg-slate-50 text-slate-700 uppercase font-bold text-[10px] border-b border-slate-200">
+                    <tr>
+                      <th className="p-3.5">Customer</th>
+                      <th className="p-3.5">Contact</th>
+                      <th className="p-3.5">Orders / Spent</th>
+                      <th className="p-3.5">Workshop Tickets</th>
+                      <th className="p-3.5">Last Activity</th>
+                      <th className="p-3.5 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {list.map((cust) => (
+                      <tr key={cust.email} className="hover:bg-slate-50/80">
+                        <td className="p-3.5 font-bold text-slate-900">{cust.name}</td>
+                        <td className="p-3.5">
+                          <div className="font-mono text-[11px] text-slate-800">{cust.email}</div>
+                          <div className="text-[10px] text-slate-400">{cust.phone || 'No phone logged'}</div>
+                        </td>
+                        <td className="p-3.5">
+                          <span className="font-bold text-slate-900">{cust.totalOrders}</span> order(s)
+                          {cust.totalSpentAUD > 0 && (
+                            <div className="text-[10px] font-mono text-emerald-700 font-bold">
+                              {formatAud(cust.totalSpentAUD)}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3.5 text-[11px]">
+                          {cust.totalRepairs} repair · {cust.totalUpgrades} upgrade · {cust.totalQuotes} quote · {cust.totalMessages} msg
+                        </td>
+                        <td className="p-3.5 text-[11px] text-slate-500">
+                          {cust.lastActivityAt ? new Date(cust.lastActivityAt).toLocaleDateString('en-AU') : '—'}
+                        </td>
+                        <td className="p-3.5 text-right whitespace-nowrap space-x-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCustomerDetail(cust)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px]"
+                          >
+                            History ({cust.references?.length || 0})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditCustomerTarget(cust);
+                              setEditCustomerName(cust.name || '');
+                              setEditCustomerPhone(cust.phone || '');
+                            }}
+                            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
+                            title="Edit customer contact details"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteCustomerTarget(cust)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            title="Remove flagged/test customer records"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </div>
+      )}
+
+      {/* 0.1 PARTS PROCUREMENT QUEUE */}
+      {activeTab === 'procurement' && (
+        <AdminPartsProcurementTab
+          onOpenOrderParts={(orderId) => {
+            setOperationsInitialTab('parts');
+            setOperationsOrderId(orderId);
+          }}
+        />
+      )}
+
+      {/* 0.2 ASSEMBLY PACKAGES & NOTIFICATIONS */}
+      {activeTab === 'packages' && (
+        <AdminAssemblyPackagesTab
+          initialPackages={adminData?.assemblyPackages}
+          initialNotificationSettings={adminData?.notificationSettings}
+          onSaved={() => fetchAdminData()}
+        />
       )}
 
       {/* 0.05 CHEAPER PRICE MATCH REQUESTS & CENTRE COM MANAGEMENT */}
@@ -1168,7 +1604,7 @@ export const AdminPage: React.FC = () => {
                     </button>
                     {rev.id !== 'rev-damiano-2026' && (
                       <button
-                        onClick={() => deleteReview(rev.id)}
+                        onClick={() => setReviewToDelete(rev)}
                         className="px-2 py-1 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50"
                       >
                         Delete
@@ -1353,7 +1789,7 @@ export const AdminPage: React.FC = () => {
 
       {/* 6. CENTRE COM PRICE MANAGER */}
       {activeTab === 'catalog' && (
-        <CentreComPriceManager passkey={passkey} />
+        <CentreComPriceManager />
       )}
 
       {/* Status Update Modal (Repairs, Upgrades & PC Orders) */}
@@ -1389,14 +1825,9 @@ export const AdminPage: React.FC = () => {
                     onChange={(e) => setNewStatus(e.target.value)}
                     className="w-full p-2.5 border border-slate-300 rounded-xl font-medium"
                   >
-                    <option value="Order Placed">Order Placed</option>
-                    <option value="Parts Allocated">Parts Allocated</option>
-                    <option value="Assembly in Progress">Assembly in Progress</option>
-                    <option value="POST / Stress Testing">POST / Stress Testing</option>
-                    <option value="Ready for Dispatch">Ready for Dispatch</option>
-                    <option value="Dispatched">Dispatched</option>
-                    <option value="Ready for Pickup">Ready for Pickup</option>
-                    <option value="Completed">Completed</option>
+                    {ORDER_STAGES.map((st) => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
                     <option value="Cancelled">Cancelled</option>
                   </select>
                 ) : (
@@ -1537,6 +1968,164 @@ export const AdminPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Customer History Modal */}
+      {selectedCustomerDetail && (
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-xs max-h-[85vh] flex flex-col">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <div className="text-[10px] font-black uppercase text-amber-600">Customer Activity History</div>
+                <h3 className="text-base font-black text-slate-900">{selectedCustomerDetail.name}</h3>
+                <div className="text-slate-500 font-mono">{selectedCustomerDetail.email} · {selectedCustomerDetail.phone || 'No phone'}</div>
+              </div>
+              <button onClick={() => setSelectedCustomerDetail(null)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {(selectedCustomerDetail.references || []).map((ref: any, idx: number) => (
+                <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-mono font-bold text-slate-900">{ref.referenceNumber}</div>
+                    <div className="text-slate-600">{ref.summary}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-bold text-[10px] uppercase">{ref.type}</span>
+                    <div className="text-[10px] text-slate-500 mt-1">{ref.status}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button onClick={() => setSelectedCustomerDetail(null)} className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Customer Contact Modal */}
+      {editCustomerTarget && (
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-xs">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <div className="text-[10px] font-black uppercase text-amber-600">Edit Customer Contact</div>
+                <h3 className="text-base font-black text-slate-900">{editCustomerTarget.email}</h3>
+              </div>
+              <button onClick={() => setEditCustomerTarget(null)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveCustomerEdit} className="space-y-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editCustomerName}
+                  onChange={(e) => setEditCustomerName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Phone</label>
+                <input
+                  type="text"
+                  value={editCustomerPhone}
+                  onChange={(e) => setEditCustomerPhone(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setEditCustomerTarget(null)} className="px-4 py-2 font-bold text-slate-600">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingCustomer}
+                  className="px-5 py-2.5 rounded-xl bg-slate-900 text-amber-400 font-black flex items-center gap-1.5"
+                >
+                  {savingCustomer && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Save Contact</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Customer Records Confirmation Modal */}
+      {deleteCustomerTarget && (
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-xs">
+            <h3 className="text-base font-black text-slate-900">Remove Customer Records?</h3>
+            <p className="text-slate-600 leading-relaxed">
+              This will permanently remove all test or flagged orders, repair tickets, upgrades, quotes, and messages linked to <strong className="font-mono">{deleteCustomerTarget.email}</strong>.
+            </p>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={deletingCustomer}
+                onClick={() => setDeleteCustomerTarget(null)}
+                className="px-4 py-2 font-bold text-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingCustomer}
+                onClick={handleConfirmDeleteCustomer}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black flex items-center gap-1.5"
+              >
+                {deletingCustomer && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Confirm Delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review Delete Confirmation Modal */}
+      {reviewToDelete && (
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-xs">
+            <h3 className="text-base font-black text-slate-900">Delete Customer Review?</h3>
+            <p className="text-slate-600 leading-relaxed">
+              Are you sure you want to delete the review by <strong>{reviewToDelete.name}</strong>?
+            </p>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={deletingReview}
+                onClick={() => setReviewToDelete(null)}
+                className="px-4 py-2 font-bold text-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingReview}
+                onClick={confirmDeleteReview}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black flex items-center gap-1.5"
+              >
+                {deletingReview && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Delete Review</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full 13-Stage / Parts Procurement / Bench Testing / Milestone Notifications Workspace */}
+      <AdminOrderOperationsModal
+        order={(adminData?.pcOrders || []).find((o: any) => o.id === operationsOrderId) || null}
+        initialTab={operationsInitialTab}
+        onClose={() => setOperationsOrderId(null)}
+        onOrderUpdated={() => fetchAdminData()}
+      />
     </div>
   );
 };

@@ -1,25 +1,48 @@
+export type BuilderCategory =
+  | 'cpu'
+  | 'motherboard'
+  | 'ram'
+  | 'gpu'
+  | 'storage'
+  | 'cooler'
+  | 'case'
+  | 'psu'
+  | 'fans'
+  | 'accessories'
+  | 'os'
+  | 'peripherals'
+  | 'monitor'
+  | 'keyboard'
+  | 'mouse'
+  | 'headset'
+  | 'microphone'
+  | 'mousepad'
+  | 'speakers'
+  | 'controller'
+  | 'thermal_paste'
+  | 'rgb_accessory';
+
+export type ImageReviewStatus =
+  | 'verified'
+  | 'awaiting_verified_photo'
+  | 'rejected_box_photo'
+  | 'flagged';
+
 export interface BuilderPart {
   id: string;
   name: string;
   brand: string;
-  category:
-    | 'cpu'
-    | 'motherboard'
-    | 'ram'
-    | 'gpu'
-    | 'storage'
-    | 'cooler'
-    | 'case'
-    | 'psu'
-    | 'fans'
-    | 'accessories'
-    | 'os'
-    | 'peripherals';
+  category: BuilderCategory;
   platform: 'AMD' | 'Intel' | 'Both';
   price: number;
   image: string;
   wattage: number;
   centreComUrl?: string;
+  centreComUrlVerified?: boolean;
+  published?: boolean;
+  imageReviewStatus?: ImageReviewStatus;
+  imageSource?: 'centrecom_verified' | 'unverified';
+  isBoxPhoto?: boolean;
   lastPriceCheck?: string;
   priceStatus?: 'current' | 'stale' | 'needs_check';
   stockStatus?: 'in_stock' | 'low_stock' | 'special_order' | 'unavailable';
@@ -76,7 +99,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'cpu',
     platform: 'AMD',
     price: 199,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/amd_ryzen_5_5600x_6core_am4_370_ghz_unlocked_cpu_processor_wraith_stealth_ac39467_3.jpg?v=1787795177',
+    image: '',
     wattage: 65,
     socket: 'AM4',
     stockStatus: 'in_stock',
@@ -120,7 +143,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'cpu',
     platform: 'AMD',
     price: 397,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/amd_ryzen_5_7500x3d_6_core_12_threads_up_to_42ghz_am5_cpu_desktop_processor_ac92757_84860.jpg?v=1787795175',
+    image: '',
     wattage: 85,
     socket: 'AM5',
     stockStatus: 'in_stock',
@@ -164,7 +187,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'cpu',
     platform: 'AMD',
     price: 599,
-    image: 'https://cdn11.bigcommerce.com/s-7g81zn9sor/products/169/images/479/Ryzen_7_9800X3D_Thumbnail__94734.1744293889.386.513.png',
+    image: '',
     wattage: 120,
     socket: 'AM5',
     stockStatus: 'in_stock',
@@ -208,7 +231,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'cpu',
     platform: 'AMD',
     price: 689,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/amd_ryzen_9_9900x_12core_am5_44_ghz_unlocked_cpu_processor_ac76671_5765.jpg?v=1787795184',
+    image: '',
     wattage: 120,
     socket: 'AM5',
     stockStatus: 'in_stock',
@@ -362,7 +385,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'cpu',
     platform: 'Intel',
     price: 949,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/intel_core_ultra_9_285k_24_core_up_to_57ghz_lga_1851_unlocked_cpu_processor_ac78460_33161.jpg?v=1787797081',
+    image: '',
     wattage: 250,
     socket: 'LGA1851',
     stockStatus: 'in_stock',
@@ -388,7 +411,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'motherboard',
     platform: 'AMD',
     price: 229,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/msi_b650m_gaming_plus_wifi_am5_matx_motherboard_ac73758_22053.jpg?v=1787797731',
+    image: '',
     wattage: 30,
     socket: 'AM5',
     chipset: 'B650',
@@ -414,7 +437,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'motherboard',
     platform: 'AMD',
     price: 269,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/asus_tuf_gaming_b650emplus_wifi_am5_microatx_motherboard_ac90930_10912.jpg?v=1787744866',
+    image: '',
     wattage: 30,
     socket: 'AM5',
     chipset: 'B650E',
@@ -440,7 +463,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'motherboard',
     platform: 'AMD',
     price: 319,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/asus_tuf_gaming_b650eplus_wifi_motherboard_ac89749_55479.jpg?v=1787795475',
+    image: '',
     wattage: 35,
     socket: 'AM5',
     chipset: 'B650E',
@@ -520,7 +543,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'motherboard',
     platform: 'AMD',
     price: 379,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/msi_mag_b850_tomahawk_max_wifi_am5_atx_motherboard_ac81748_23811.jpg?v=1787797761',
+    image: '',
     wattage: 40,
     socket: 'AM5',
     chipset: 'B850',
@@ -573,7 +596,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'motherboard',
     platform: 'AMD',
     price: 549,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/msi_mag_x870e_tomahawk_max_wifi_am5_atx_motherboard_ac94356_29664.jpg?v=1787797769',
+    image: '',
     wattage: 50,
     socket: 'AM5',
     chipset: 'X870E',
@@ -628,7 +651,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'motherboard',
     platform: 'AMD',
     price: 129,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/asus_prime_b550ma_wifi_ii_am4_microatx_motherboard_ac54160_1.jpg?v=1787784002',
+    image: '',
     wattage: 20,
     socket: 'AM4',
     chipset: 'B550',
@@ -683,7 +706,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'motherboard',
     platform: 'Intel',
     price: 199,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/pro_b760ma_wifi_ddr4_ac60093_78909.jpg?v=1787797790',
+    image: '',
     wattage: 25,
     socket: 'LGA1700',
     chipset: 'B760',
@@ -709,7 +732,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'motherboard',
     platform: 'Intel',
     price: 299,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/msi_mag_b760_tomahawk_wifi_lga_1700_atx_motherboard_ac60129_21966.jpg?v=1787746815',
+    image: '',
     wattage: 35,
     socket: 'LGA1700',
     chipset: 'B760',
@@ -789,7 +812,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'motherboard',
     platform: 'Intel',
     price: 459,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/asus_tuf_gaming_z890plus_wifi_intel_lga_1851_atx_motherboard_ac78477_10252.jpg?v=1787784106',
+    image: '',
     wattage: 45,
     socket: 'LGA1851',
     chipset: 'Z890',
@@ -815,7 +838,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'motherboard',
     platform: 'Intel',
     price: 729,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/asus_rog_strix_z890e_gaming_wifi_intel_lga_1851_atx_motherboard_ac78472_22921.jpg?v=1787795477',
+    image: '',
     wattage: 55,
     socket: 'LGA1851',
     chipset: 'Z890',
@@ -898,7 +921,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'ram',
     platform: 'Both',
     price: 199,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/AC16041_1.jpg?v=1787796719',
+    image: '',
     wattage: 15,
     ramType: 'DDR4',
     stockStatus: 'in_stock',
@@ -919,7 +942,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'ram',
     platform: 'Both',
     price: 65,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/AC24726_2.jpg?v=1787796087',
+    image: '',
     wattage: 10,
     ramType: 'DDR4',
     stockStatus: 'in_stock',
@@ -938,7 +961,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'ram',
     platform: 'Both',
     price: 119,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/1-c85fa44539-lxm-dr5-u8gx2-c380v.jpg?v=1794887250',
+    image: '',
     wattage: 12,
     ramType: 'DDR5',
     stockStatus: 'in_stock',
@@ -978,7 +1001,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'ram',
     platform: 'Both',
     price: 189,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/corsair_vengeance_rgb_32gb_2x16gb_ddr5_6000mhz_desktop_memory_amd_ac70142_15391.jpg?v=1787796092',
+    image: '',
     wattage: 15,
     ramType: 'DDR5',
     stockStatus: 'in_stock',
@@ -998,7 +1021,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'ram',
     platform: 'Both',
     price: 239,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/178305877510.jpg?v=1790137491',
+    image: '',
     wattage: 18,
     ramType: 'DDR5',
     stockStatus: 'in_stock',
@@ -1018,7 +1041,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'ram',
     platform: 'Both',
     price: 769,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/klevv_fit_v_32gb_2x_16gb_ddr5_6000mhz_c28_desktop_memory_white_ac87787_72501.jpg?v=1787797247',
+    image: '',
     wattage: 20,
     ramType: 'DDR5',
     stockStatus: 'in_stock',
@@ -1038,7 +1061,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'ram',
     platform: 'Both',
     price: 369,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/corsair_vengeance_rgb_64gb_2x_32gb_ddr5_6000mhz_c40_desktop_memory_black_ac91889_18720.jpg?v=1787796096',
+    image: '',
     wattage: 24,
     ramType: 'DDR5',
     stockStatus: 'in_stock',
@@ -1062,7 +1085,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'gpu',
     platform: 'Both',
     price: 449,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/palit_geforce_rtx_5050_dual_ac88548_11881.jpg?v=1787798046',
+    image: '',
     wattage: 130,
     gpuLengthMm: 235,
     stockStatus: 'in_stock',
@@ -1103,7 +1126,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'gpu',
     platform: 'Both',
     price: 539,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/palit_geforce_rtx_3060_infinity_2_oc_12gb_gddr6_video_card_ad00164_42751.jpg?v=1790126518',
+    image: '',
     wattage: 170,
     gpuLengthMm: 245,
     stockStatus: 'in_stock',
@@ -1124,7 +1147,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'gpu',
     platform: 'Both',
     price: 439,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/670_1.jpg?v=1790144493',
+    image: '',
     wattage: 165,
     gpuLengthMm: 282,
     stockStatus: 'in_stock',
@@ -1144,7 +1167,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'gpu',
     platform: 'Both',
     price: 419,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/xfx_amd_radeon_rx_7600_speedster_swft210_core_edition_8gb_gddr6_video_card_ac87636_45958.jpg?v=1787799793',
+    image: '',
     wattage: 165,
     gpuLengthMm: 241,
     stockStatus: 'in_stock',
@@ -1164,7 +1187,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'gpu',
     platform: 'Both',
     price: 549,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/1_7eeb858e-3c52-4905-9f2f-a7f302563ce6.jpg?v=1794789279',
+    image: '',
     wattage: 145,
     gpuLengthMm: 227,
     stockStatus: 'in_stock',
@@ -1184,7 +1207,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'gpu',
     platform: 'Both',
     price: 789,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/inno3d_geforce_rtx_5060_ti_twin_x2_16gb_video_card_ac84868_61382.jpg?v=1787797062',
+    image: '',
     wattage: 180,
     gpuLengthMm: 250,
     stockStatus: 'in_stock',
@@ -1204,7 +1227,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'gpu',
     platform: 'Both',
     price: 649,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/asus_dual_radeon_rx_9060_xt_16gb_gddr6_video_card_ac92575_62084.jpg?v=1787744795',
+    image: '',
     wattage: 160,
     gpuLengthMm: 240,
     stockStatus: 'in_stock',
@@ -1224,7 +1247,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'gpu',
     platform: 'Both',
     price: 679,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/sapphire_radeon_rx_9060_xt_pure_gaming_oc_16gb_video_card_ac86452_24436.jpg?v=1787798350',
+    image: '',
     wattage: 170,
     gpuLengthMm: 250,
     stockStatus: 'in_stock',
@@ -1244,7 +1267,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'gpu',
     platform: 'Both',
     price: 1199,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/sapphire_radeon_rx_9070_xt_16gb_video_card_ac82922_17857.jpg?v=1787798354',
+    image: '',
     wattage: 304,
     gpuLengthMm: 320,
     stockStatus: 'in_stock',
@@ -1264,7 +1287,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'gpu',
     platform: 'Both',
     price: 1249,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/sapphire_radeon_rx_9070_xt_pure_16gb_video_card_ac82921_56136.jpg?v=1787798355',
+    image: '',
     wattage: 304,
     gpuLengthMm: 320,
     stockStatus: 'in_stock',
@@ -1389,7 +1412,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'storage',
     platform: 'Both',
     price: 99,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/crucial_e100_1tb_pcie_40_nvme_m2_2280_ssd_ct1000e100ssd8_ac82105_82969.jpg?v=1787796113',
+    image: '',
     wattage: 5,
     storageType: 'M.2 NVMe',
     stockStatus: 'in_stock',
@@ -1427,7 +1450,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'storage',
     platform: 'Both',
     price: 179,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/samsung_990_pro_1tb_pcie_40_nvme_m2_2280_ssd_mzv9p1t0bw_ac58656_68166.jpg?v=1787787018',
+    image: '',
     wattage: 6,
     storageType: 'M.2 NVMe',
     stockStatus: 'in_stock',
@@ -1467,7 +1490,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'storage',
     platform: 'Both',
     price: 269,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/samsung_870_evo_2tb_25_sata_iii_6gbs_vnand_ssd_mz77e2t0bw_ac41600_42270.jpg?v=1787800706',
+    image: '',
     wattage: 4,
     storageType: '2.5" SATA',
     stockStatus: 'in_stock',
@@ -1487,7 +1510,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'storage',
     platform: 'Both',
     price: 119,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/wd_wd23purz_2tb_purple_35_sata_6gbs_64mb_surveillance_hard_drive_ac70665_52728.jpg?v=1787748334',
+    image: '',
     wattage: 6,
     storageType: '3.5" HDD',
     stockStatus: 'in_stock',
@@ -1532,7 +1555,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'cooler',
     platform: 'Both',
     price: 39,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/deepcool_ak400_120mm_pwm_fan_cpu_cooler_black_ac54036.jpg?v=1787784834',
+    image: '',
     wattage: 5,
     coolerType: 'air',
     coolerHeightMm: 155,
@@ -1575,7 +1598,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'cooler',
     platform: 'Both',
     price: 65,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/thermalright_peerless_assassin_120_se_argb_cpu_air_cooler_black_ac92618_8668.jpg?v=1787799131',
+    image: '',
     wattage: 10,
     coolerType: 'air',
     coolerHeightMm: 155,
@@ -1596,7 +1619,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'cooler',
     platform: 'Both',
     price: 139,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/arctic_liquid_freezer_iii_pro_240mm_cpu_water_cooler_ac91030_70648.jpg?v=1787795298',
+    image: '',
     wattage: 15,
     coolerType: 'aio_240',
     stockStatus: 'in_stock',
@@ -1615,7 +1638,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'cooler',
     platform: 'Both',
     price: 299,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/corsair_icue_link_titan_rx_rgb_240mm_lcd_aio_liquid_cpu_cooler_black_ac82409_78184.jpg?v=1787796037',
+    image: '',
     wattage: 18,
     coolerType: 'aio_240',
     stockStatus: 'in_stock',
@@ -1654,7 +1677,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'cooler',
     platform: 'Both',
     price: 349,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/asus_rog_strix_lc_iii_360mm_argb_lcd_aio_liquid_cpu_cooler_white_ac82575_64559.jpg?v=1787795458',
+    image: '',
     wattage: 22,
     coolerType: 'aio_360',
     stockStatus: 'in_stock',
@@ -1673,7 +1696,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'cooler',
     platform: 'Both',
     price: 369,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/corsair_icue_link_titan_rx_rgb_360mm_lcd_aio_liquid_cpu_cooler_black_ac82410_83853.jpg?v=1787796038',
+    image: '',
     wattage: 24,
     coolerType: 'aio_360',
     stockStatus: 'in_stock',
@@ -1743,7 +1766,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'case',
     platform: 'Both',
     price: 129,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/ap201_prime_case_tg_black_ac70165_17045.jpg?v=1787795399',
+    image: '',
     wattage: 5,
     supportedFormFactors: ['Micro-ATX', 'Mini-ITX'],
     maxGpuLengthMm: 338,
@@ -1766,7 +1789,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'case',
     platform: 'Both',
     price: 125,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/asus_a32_dual_chamber_tempered_glass_atx_case_black_ac99414_17978.jpg?v=1787795361',
+    image: '',
     wattage: 10,
     supportedFormFactors: ['ATX', 'Micro-ATX', 'Mini-ITX'],
     maxGpuLengthMm: 390,
@@ -1812,7 +1835,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'case',
     platform: 'Both',
     price: 159,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/corsair_frame_4000d_modular_midtower_pc_case_white_ac83437_13218.jpg?v=1787796029',
+    image: '',
     wattage: 5,
     supportedFormFactors: ['ATX', 'Micro-ATX', 'Mini-ITX'],
     maxGpuLengthMm: 430,
@@ -1839,7 +1862,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'psu',
     platform: 'Both',
     price: 79,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/Power-Supply-PSU-Asus-Prime-750W_2.jpg?v=1794363265',
+    image: '',
     wattage: 750,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -1877,7 +1900,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'psu',
     platform: 'Both',
     price: 129,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/antec_gsk850_v2_850w_80_gold_pcie_51_atx_31_fully_modular_power_supply_black_ac90920_5145.jpg?v=1787795209',
+    image: '',
     wattage: 850,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -1896,7 +1919,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'psu',
     platform: 'Both',
     price: 279,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/corsair_rmx_series_rm1000x_1000w_80_gold_atx_31_fully_modular_atx_power_supply_ac74761_39942.jpg?v=1787784739',
+    image: '',
     wattage: 1000,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -1937,7 +1960,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'fans',
     platform: 'Both',
     price: 49,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/arctic_p12_pro_pst_120_mm_pwm_fan_black_5pack_ac91053_66627.jpg?v=1787795305',
+    image: '',
     wattage: 12,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -1955,7 +1978,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'fans',
     platform: 'Both',
     price: 99,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/f120rgb_core_120mm_hubmounted_rgb_fan_triple_pack_white_wrgb_controller_ac61761_80910.jpg?v=1787797937',
+    image: '',
     wattage: 10,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -1973,7 +1996,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'fans',
     platform: 'Both',
     price: 89,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/AC10173.jpg?v=1787796081',
+    image: '',
     wattage: 8,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -1994,7 +2017,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'accessories',
     platform: 'Both',
     price: 19,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/noctua_nth1_sw_edition_thermal_compound_35g_ac62471_57749.jpg?v=1787797912',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2011,7 +2034,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'accessories',
     platform: 'Both',
     price: 29,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/thermaltake_graphics_card_gpu_support_bracket_holder_ac71082_9316.jpg?v=1787799167',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2028,7 +2051,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'accessories',
     platform: 'Both',
     price: 49,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/cooler_master_atlas_vga_holder_ac69381_1434.jpg?v=1787795974',
+    image: '',
     wattage: 2,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2106,7 +2129,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'peripherals',
     platform: 'Both',
     price: 149,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/msi_pro_mp242_e14a_238_144hz_fhd_1ms_adaptive_sync_ips_business_monitor_ac95423_87714.jpg?v=1787800580',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2124,7 +2147,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'peripherals',
     platform: 'Both',
     price: 449,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/samsung_odyssey_g5_g50f_32_180hz_qhd_1ms_freesync_ips_gaming_monitor_ac95935_79498.jpg?v=1787798291',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2142,7 +2165,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'peripherals',
     platform: 'Both',
     price: 219,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/keychron_k2_he_black_wireless_magnetic_switch_custom_keyboard_special_edition_ac81764_48822.jpg?v=1787800410',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2160,7 +2183,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'peripherals',
     platform: 'Both',
     price: 79,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/logitech_mk470_slim_wireless_keyboard_and_mouse_combo_graphite_ac31644_1.jpg?v=1787800512',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2177,7 +2200,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'peripherals',
     platform: 'Both',
     price: 49,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/logitech_g203_lightsync_gaming_mouse_lilac_ac37718.jpg?v=1787800486',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2195,7 +2218,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'peripherals',
     platform: 'Both',
     price: 249,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/logitech_pro_x_superlight_2_dex_wireless_gaming_mouse_black_ac78707_19854.jpg?v=1787800529',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2213,7 +2236,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'peripherals',
     platform: 'Both',
     price: 229,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/hyperx_cloud_iii_s_wireless_gaming_headset_blackred_ac96865_33422.jpg?v=1787797044',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2231,7 +2254,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'peripherals',
     platform: 'Both',
     price: 159,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/blue_microphones_yeti_nano_premium_usb_microphone_blackout_edition_ac49722.jpg?v=1787800151',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2249,7 +2272,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'peripherals',
     platform: 'Both',
     price: 49,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/steelseries_qck_cloth_gaming_mousepad_xxl_ac93089_26060.jpg?v=1787798990',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2267,7 +2290,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'peripherals',
     platform: 'Both',
     price: 149,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/logitech_z407_wireless_bluetooth_speaker_system_ac40114.jpg?v=1787800537',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2285,7 +2308,7 @@ export const BUILDER_PARTS: BuilderPart[] = [
     category: 'peripherals',
     platform: 'Both',
     price: 249,
-    image: 'https://cdn.shopify.com/s/files/1/0708/6633/7923/files/rog_raikiri_ii_x_ac90564_45867.jpg?v=1787795430',
+    image: '',
     wattage: 0,
     stockStatus: 'in_stock',
     priceStatus: 'needs_check',
@@ -2298,9 +2321,41 @@ export const BUILDER_PARTS: BuilderPart[] = [
   }
 ];
 
-// Helper to filter parts by category
-export function getPartsByCategory(category: BuilderPart['category']): BuilderPart[] {
-  return BUILDER_PARTS.filter((p) => p.category === category);
+export function isVerifiedNonPlaceholderImage(url?: string | null): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (
+    trimmed.includes('cdn.shopify.com') ||
+    trimmed.includes('images.unsplash.com') ||
+    trimmed.includes('cdn11.bigcommerce.com') ||
+    trimmed.endsWith('.svg') ||
+    trimmed.startsWith('/images/parts/')
+  ) {
+    return false;
+  }
+  return trimmed.startsWith('https://') || trimmed.startsWith('http://') || trimmed.startsWith('/images/verified/');
+}
+
+export function isPublishedVerifiedPart(part: Partial<BuilderPart>): boolean {
+  if (!part) return false;
+  if (part.published !== true) return false;
+  if (part.isBoxPhoto === true) return false;
+  if (part.imageReviewStatus !== 'verified') return false;
+  if (!isVerifiedNonPlaceholderImage(part.image)) return false;
+  return true;
+}
+
+// Helper to filter parts by category (customer-facing strict verified check available via publishedOnly)
+export function getPartsByCategory(
+  category: BuilderPart['category'],
+  options?: { publishedOnly?: boolean }
+): BuilderPart[] {
+  return BUILDER_PARTS.filter((p) => {
+    if (p.category !== category) return false;
+    if (options?.publishedOnly) return isPublishedVerifiedPart(p);
+    return true;
+  });
 }
 
 // Category display labels and icons
@@ -2321,31 +2376,38 @@ export const BUILDER_CATEGORIES: {
   { category: 'fans', label: 'Case Fans', required: false, iconName: 'Wind' },
   { category: 'accessories', label: 'PC Accessories', required: false, iconName: 'Wrench' },
   { category: 'os', label: 'Operating System', required: true, iconName: 'Layers' },
-  { category: 'peripherals', label: 'Peripherals', required: false, iconName: 'Monitor' }
+  { category: 'peripherals', label: 'Peripherals', required: false, iconName: 'Monitor' },
+  { category: 'monitor', label: 'Monitors', required: false, iconName: 'Monitor' },
+  { category: 'keyboard', label: 'Keyboards', required: false, iconName: 'Keyboard' },
+  { category: 'mouse', label: 'Mice', required: false, iconName: 'Mouse' },
+  { category: 'headset', label: 'Headsets', required: false, iconName: 'Headphones' },
+  { category: 'microphone', label: 'Microphones', required: false, iconName: 'Mic' }
 ];
 
-// Helper to get direct Centre Com product page URL
-export function getPartCentreComUrl(part: BuilderPart): string {
-  if (part.centreComUrl) return part.centreComUrl;
-  const slug = part.name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-  return `https://www.centrecom.com.au/${slug}`;
+// Helper to get direct Centre Com product page URL (NEVER invents guessed slug URLs)
+export function getPartCentreComUrl(part: Partial<BuilderPart>): string | null {
+  if (
+    part.centreComUrl &&
+    part.centreComUrlVerified === true &&
+    part.centreComUrl.startsWith('https://www.centrecom.com.au/')
+  ) {
+    return part.centreComUrl;
+  }
+  return null;
 }
 
 // Verification audit metadata for any part
 export function getPartPriceAudit(part: BuilderPart): {
-  centreComUrl: string;
-  lastChecked: string;
+  centreComUrl: string | null;
+  lastChecked: string | null;
   priceStatus: 'current' | 'stale' | 'needs_check';
   stockStatus: 'in_stock' | 'low_stock' | 'special_order' | 'unavailable';
   verifiedRetailer: string;
 } {
   return {
     centreComUrl: getPartCentreComUrl(part),
-    lastChecked: part.lastPriceCheck || '2026-10-27T10:00:00.000Z',
-    priceStatus: part.priceStatus || 'current',
+    lastChecked: part.lastPriceCheck || null,
+    priceStatus: part.priceStatus || 'needs_check',
     stockStatus: part.stockStatus || 'in_stock',
     verifiedRetailer: 'Centre Com (https://www.centrecom.com.au)'
   };

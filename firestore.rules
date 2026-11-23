@@ -24,46 +24,194 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Bootstrapped admin verification
+    function isVerifiedAdminToken() {
+      return isSignedIn()
+        && request.auth.token.email == 'n10a.yt@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
     function isAdmin() {
       return isSignedIn() && (
-        (request.auth.token.email == 'n10a.yt@gmail.com' && request.auth.token.email_verified == true) ||
+        isVerifiedAdminToken() ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
 
-    // 3. Products Catalogue
-    match /products/{productId} {
-      allow read: if isValidId(productId);
-      allow create, update, delete: if isValidId(productId) && isAdmin();
+    // 3. Entity Validation Blueprints
+    function isValidProduct(data) {
+      return data.keys().hasAll([
+          'productId', 'manufacturer', 'model', 'category', 'retailer',
+          'currency', 'status', 'priceSource', 'published',
+          'imageReviewStatus', 'isBoxPhoto', 'centreComUrlVerified'
+        ])
+        && isValidId(data.productId)
+        && data.manufacturer is string && data.manufacturer.size() <= 100
+        && data.model is string && data.model.size() <= 200
+        && data.category is string && data.category.size() <= 50
+        && data.retailer == 'Centre Com'
+        && data.currency == 'AUD'
+        && data.priceSource == 'Centre Com'
+        && data.published is bool
+        && data.isBoxPhoto is bool
+        && data.centreComUrlVerified is bool
+        && data.imageReviewStatus in ['verified', 'awaiting_verified_photo', 'rejected_box_photo', 'flagged']
+        && data.status in ['active', 'stale', 'unavailable', 'price_check_failed', 'needs_review']
+        && (!data.published || (data.imageReviewStatus == 'verified' && !data.isBoxPhoto && data.centreComUrlVerified));
     }
 
-    // 4. Price History Audit Logs
-    match /priceHistory/{historyId} {
-      allow read: if isValidId(historyId);
-      allow create, update, delete: if isValidId(historyId) && isAdmin();
+    function isValidAssemblyPackage(data) {
+      return data.keys().hasAll(['id', 'optionNumber', 'name', 'price', 'enabled', 'description'])
+        && isValidId(data.id)
+        && data.optionNumber is number && data.optionNumber >= 1
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 120
+        && data.price is number && data.price >= 0
+        && data.enabled is bool
+        && data.description is string && data.description.size() <= 500;
     }
 
-    // 5. Customer Cheaper Price Requests
+    function isValidPcOrder(data) {
+      return data.keys().hasAll(['id', 'referenceNumber', 'customerName', 'email', 'pcId', 'pcName', 'finalTotal', 'status'])
+        && isValidId(data.id)
+        && data.referenceNumber is string && data.referenceNumber.size() <= 40
+        && data.customerName is string && data.customerName.size() <= 120
+        && data.email is string && data.email.size() <= 150
+        && data.pcId is string && data.pcId.size() <= 128
+        && data.pcName is string && data.pcName.size() <= 200
+        && data.finalTotal is number && data.finalTotal >= 0
+        && data.status in [
+          'Order received', 'Order confirmed', 'Parts being sourced', 'Waiting for parts',
+          'All parts received', 'Assembly started', 'PC assembly completed',
+          'Post-build testing', 'Stress testing', 'Gaming FPS testing',
+          'Final quality check', 'Ready for collection or dispatch',
+          'Completed or collected', 'Cancelled'
+        ];
+    }
+
+    function isValidOrderPart(data) {
+      return data.keys().hasAll(['id', 'orderId', 'name', 'category', 'status', 'qtyRequired', 'qtyReceived'])
+        && isValidId(data.id)
+        && isValidId(data.orderId)
+        && data.name is string && data.name.size() <= 250
+        && data.category is string && data.category.size() <= 60
+        && data.qtyRequired is number && data.qtyRequired >= 1
+        && data.qtyReceived is number && data.qtyReceived >= 0
+        && data.status in [
+          'Not Ordered', 'Ready to Order', 'Ordered', 'In Transit',
+          'Partially Received', 'Received', 'Missing', 'Damaged',
+          'Cancelled', 'Customer Supplied'
+        ];
+    }
+
+    function isValidOrderTest(data) {
+      return data.keys().hasAll(['id', 'orderId', 'powerOnPost', 'finalQualityCheck'])
+        && isValidId(data.id)
+        && isValidId(data.orderId)
+        && data.powerOnPost is bool
+        && data.finalQualityCheck is bool;
+    }
+
+    function isValidCustomerNotification(data) {
+      return data.keys().hasAll(['id', 'orderId', 'eventKey', 'recipientEmail', 'subject', 'sentAt', 'deliveryStatus'])
+        && isValidId(data.id)
+        && isValidId(data.orderId)
+        && data.eventKey in [
+          'order_confirmed', 'parts_ordered', 'parts_received',
+          'assembly_started', 'testing_completed', 'ready_for_collection', 'dispatched'
+        ]
+        && data.recipientEmail is string && data.recipientEmail.size() <= 150
+        && data.subject is string && data.subject.size() <= 200
+        && data.deliveryStatus in ['sent', 'logged'];
+    }
+
     function isValidCheaperPriceSubmission(data) {
       return data.keys().hasAll(['id', 'referenceNumber', 'customerName', 'email', 'partName', 'category', 'centreComPrice', 'competitorPrice', 'verificationOutcome', 'status'])
-        && data.id is string && data.id.size() <= 128
+        && isValidId(data.id)
+        && data.referenceNumber is string && data.referenceNumber.size() <= 30
         && data.customerName is string && data.customerName.size() <= 100
         && data.email is string && data.email.size() <= 150
         && data.partName is string && data.partName.size() <= 200
+        && data.category is string && data.category.size() <= 50
         && data.centreComPrice is number && data.centreComPrice >= 0
         && data.competitorPrice is number && data.competitorPrice >= 0
+        && data.verificationOutcome in ['verified', 'needs_review', 'rejected']
         && data.status in ['pending', 'approved', 'rejected', 'more_info'];
     }
 
-    match /cheaperPriceRequests/{requestId} {
-      allow create: if isValidId(requestId) && isValidCheaperPriceSubmission(incoming());
-      allow read, update, delete: if isValidId(requestId) && isAdmin();
+    // 4. Products Catalogue (Only verified, published, non-box products are public)
+    match /products/{productId} {
+      allow get: if isValidId(productId) && (existing().published == true || isAdmin());
+      allow list: if resource.data.published == true || isVerifiedAdminToken();
+      allow create, update: if isValidId(productId) && isAdmin() && isValidProduct(incoming());
+      allow delete: if isValidId(productId) && isAdmin();
     }
 
-    // 6. Admin Accounts
+    // 5. Price History Audit Logs
+    match /priceHistory/{historyId} {
+      allow get: if isValidId(historyId) && isAdmin();
+      allow list: if isVerifiedAdminToken();
+      allow create, update, delete: if isValidId(historyId) && isAdmin();
+    }
+
+    // 6. Configurable Assembly Packages
+    match /assemblyPackages/{packageId} {
+      allow get: if isValidId(packageId);
+      allow list: if resource.data.enabled == true || isVerifiedAdminToken();
+      allow create, update: if isValidId(packageId) && isAdmin() && isValidAssemblyPackage(incoming());
+      allow delete: if isValidId(packageId) && isAdmin();
+    }
+
+    // 7. PC Orders & Nested Parts / Tests / Notifications (Strict PII Isolation)
+    match /pcOrders/{orderId} {
+      allow get: if isValidId(orderId) && isAdmin();
+      allow list: if isVerifiedAdminToken();
+      allow create, update: if isValidId(orderId) && isAdmin() && isValidPcOrder(incoming());
+      allow delete: if isValidId(orderId) && isAdmin();
+
+      match /parts/{partId} {
+        allow get: if isValidId(orderId) && isValidId(partId) && isAdmin()
+          && exists(/databases/$(database)/documents/pcOrders/$(orderId));
+        allow list: if isVerifiedAdminToken();
+        allow create, update: if isValidId(orderId) && isValidId(partId) && isAdmin()
+          && exists(/databases/$(database)/documents/pcOrders/$(orderId))
+          && isValidOrderPart(incoming())
+          && incoming().orderId == orderId;
+        allow delete: if isValidId(orderId) && isValidId(partId) && isAdmin();
+      }
+
+      match /tests/{testId} {
+        allow get: if isValidId(orderId) && isValidId(testId) && isAdmin()
+          && exists(/databases/$(database)/documents/pcOrders/$(orderId));
+        allow list: if isVerifiedAdminToken();
+        allow create, update: if isValidId(orderId) && isValidId(testId) && isAdmin()
+          && exists(/databases/$(database)/documents/pcOrders/$(orderId))
+          && isValidOrderTest(incoming())
+          && incoming().orderId == orderId;
+        allow delete: if isValidId(orderId) && isValidId(testId) && isAdmin();
+      }
+
+      match /notifications/{notificationId} {
+        allow get: if isValidId(orderId) && isValidId(notificationId) && isAdmin()
+          && exists(/databases/$(database)/documents/pcOrders/$(orderId));
+        allow list: if isVerifiedAdminToken();
+        allow create, update: if isValidId(orderId) && isValidId(notificationId) && isAdmin()
+          && exists(/databases/$(database)/documents/pcOrders/$(orderId))
+          && isValidCustomerNotification(incoming())
+          && incoming().orderId == orderId;
+        allow delete: if isValidId(orderId) && isValidId(notificationId) && isAdmin();
+      }
+    }
+
+    // 8. Customer Cheaper Price Requests
+    match /cheaperPriceRequests/{requestId} {
+      allow create: if isValidId(requestId) && isValidCheaperPriceSubmission(incoming());
+      allow get, update, delete: if isValidId(requestId) && isAdmin();
+      allow list: if isVerifiedAdminToken();
+    }
+
+    // 9. Admin Accounts
     match /admins/{adminId} {
-      allow read, write: if isValidId(adminId) && isAdmin();
+      allow get, create, update, delete: if isValidId(adminId) && isAdmin();
+      allow list: if isVerifiedAdminToken();
     }
   }
 }

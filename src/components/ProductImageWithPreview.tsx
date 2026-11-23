@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ZoomIn, Eye, Cpu, Boxes, HardDrive, Zap, Database, Fan, Server, BatteryCharging, Wind, Layers } from 'lucide-react';
+import { X, ZoomIn } from 'lucide-react';
+import { isVerifiedNonPlaceholderImage } from '../data/builderCatalog.ts';
 
 interface ProductImageWithPreviewProps {
-  src: string;
+  src?: string | null;
   alt: string;
   name: string;
   category?: string;
@@ -25,7 +26,30 @@ export const ProductImageWithPreview: React.FC<ProductImageWithPreviewProps> = (
   const [isHovered, setIsHovered] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
-  const triggerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [src]);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isModalOpen]);
+
+  // Strict Zero-Placeholder Enforcement:
+  // If image URL is missing, broken, or not a verified product photo, render nothing on customer pages.
+  if (imageError || !isVerifiedNonPlaceholderImage(src)) {
+    return null;
+  }
+
+  const validSrc = src as string;
 
   const handleMouseEnter = () => {
     if (window.innerWidth < 1024) return;
@@ -51,48 +75,6 @@ export const ProductImageWithPreview: React.FC<ProductImageWithPreviewProps> = (
     setIsHovered(false);
   };
 
-  useEffect(() => {
-    if (!isModalOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsModalOpen(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isModalOpen]);
-
-  const getCategoryIcon = (cat?: string) => {
-    const iconCls = 'w-5 h-5 text-slate-400';
-    switch (cat?.toLowerCase()) {
-      case 'cpu':
-        return <Cpu className={iconCls} />;
-      case 'motherboard':
-        return <Boxes className={iconCls} />;
-      case 'ram':
-        return <HardDrive className={iconCls} />;
-      case 'gpu':
-        return <Zap className={iconCls} />;
-      case 'storage':
-        return <Database className={iconCls} />;
-      case 'cooler':
-        return <Fan className={iconCls} />;
-      case 'case':
-        return <Server className={iconCls} />;
-      case 'psu':
-        return <BatteryCharging className={iconCls} />;
-      case 'fans':
-        return <Wind className={iconCls} />;
-      case 'os':
-        return <Layers className={iconCls} />;
-      default:
-        return <Cpu className={iconCls} />;
-    }
-  };
-
-  const isGenericOrMissing = !src || src.trim() === '' || src.includes('images.unsplash.com');
-  const showFallback = imageError || isGenericOrMissing;
-
   return (
     <>
       <div
@@ -103,22 +85,13 @@ export const ProductImageWithPreview: React.FC<ProductImageWithPreviewProps> = (
         className={`relative group/img cursor-zoom-in inline-block shrink-0 ${className}`}
         title={`Click or tap to inspect ${name}`}
       >
-        {!showFallback ? (
-          <img
-            src={src}
-            alt={alt}
-            onError={() => setImageError(true)}
-            className={`${thumbnailClassName} transition-transform duration-200 group-hover/img:scale-105 bg-white border border-slate-200`}
-            loading="lazy"
-          />
-        ) : (
-          <div className={`${thumbnailClassName} bg-slate-50 border border-slate-200 flex flex-col items-center justify-center p-1 text-center`}>
-            {getCategoryIcon(category)}
-            <span className="text-[7.5px] font-semibold text-slate-400 mt-0.5 uppercase tracking-tight">
-              No image
-            </span>
-          </div>
-        )}
+        <img
+          src={validSrc}
+          alt={alt}
+          onError={() => setImageError(true)}
+          className={`${thumbnailClassName} transition-transform duration-200 group-hover/img:scale-105 bg-white border border-slate-200`}
+          loading="lazy"
+        />
 
         <div className="absolute inset-0 bg-navy/10 opacity-0 group-hover/img:opacity-100 transition-opacity rounded-md flex items-center justify-center pointer-events-none">
           <ZoomIn className="w-3.5 h-3.5 text-navy drop-shadow" />
@@ -130,24 +103,12 @@ export const ProductImageWithPreview: React.FC<ProductImageWithPreviewProps> = (
           style={{ top: coords.top, left: coords.left }}
           className="fixed z-[100] w-64 bg-white border border-slate-200 text-navy rounded-md shadow-xl p-3 pointer-events-none transition-all"
         >
-          <div className="w-full h-44 bg-slate-50 rounded border border-slate-200 overflow-hidden flex items-center justify-center mb-2.5">
-            {!showFallback ? (
-              <img
-                src={src}
-                alt={alt}
-                className="w-full h-full object-contain p-2 bg-white"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center p-3 text-center space-y-1.5">
-                <div className="w-10 h-10 rounded-md bg-white border border-slate-200 flex items-center justify-center">
-                  {getCategoryIcon(category)}
-                </div>
-                <span className="text-[11px] font-semibold text-slate-600">Image unavailable</span>
-                <span className="text-[9.5px] text-slate-500 leading-tight">
-                  Awaiting verified Centre Com product photo
-                </span>
-              </div>
-            )}
+          <div className="w-full h-44 bg-white rounded border border-slate-200 overflow-hidden flex items-center justify-center mb-2.5">
+            <img
+              src={validSrc}
+              alt={alt}
+              className="w-full h-full object-contain p-2 bg-white"
+            />
           </div>
           <div className="text-[12.5px] font-bold text-navy truncate">{name}</div>
           {category && (
@@ -188,24 +149,12 @@ export const ProductImageWithPreview: React.FC<ProductImageWithPreviewProps> = (
               <X className="w-5 h-5" />
             </button>
 
-            <div className="w-full h-64 sm:h-72 bg-slate-50 rounded-md border border-slate-200 flex items-center justify-center p-4 overflow-hidden">
-              {!showFallback ? (
-                <img
-                  src={src}
-                  alt={alt}
-                  className="max-h-full max-w-full object-contain bg-white"
-                />
-              ) : (
-                <div className="text-center space-y-2 p-4">
-                  <div className="w-14 h-14 rounded-md bg-white border border-slate-200 flex items-center justify-center mx-auto">
-                    {getCategoryIcon(category)}
-                  </div>
-                  <div className="text-[13.5px] font-bold text-navy">Genuine Centre Com Image Unavailable</div>
-                  <p className="text-[12px] text-slate-600 max-w-xs mx-auto">
-                    Awaiting verified Centre Com product photography asset. Placeholder and AI-generated images are excluded.
-                  </p>
-                </div>
-              )}
+            <div className="w-full h-64 sm:h-72 bg-white rounded-md border border-slate-200 flex items-center justify-center p-4 overflow-hidden">
+              <img
+                src={validSrc}
+                alt={alt}
+                className="max-h-full max-w-full object-contain bg-white"
+              />
             </div>
 
             <div>

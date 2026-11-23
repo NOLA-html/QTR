@@ -14,6 +14,10 @@ import {
   formatAud
 } from '../utils/pricing.ts';
 import { useCart } from '../context/CartContext.tsx';
+import {
+  PeripheralsWarningModal,
+  isPeripheralsAcknowledged
+} from '../components/PeripheralsWarningModal.tsx';
 
 interface DesktopPcsPageProps {
   selectedSlug?: string;
@@ -56,6 +60,7 @@ export const DesktopPcsPage: React.FC<DesktopPcsPageProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'featured' | 'price_asc' | 'price_desc'>('featured');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [showPeripheralsWarning, setShowPeripheralsWarning] = useState(false);
 
   // If viewing detail route (/prebuilt-pcs/:slug)
   const detailPc: CustomPcProduct | undefined = selectedSlug
@@ -65,6 +70,14 @@ export const DesktopPcsPage: React.FC<DesktopPcsPageProps> = ({
           pc.name.toLowerCase().replace(/\s+/g, '-') === selectedSlug.toLowerCase()
       )
     : undefined;
+
+  React.useEffect(() => {
+    if (selectedSlug && detailPc && !isPeripheralsAcknowledged()) {
+      setShowPeripheralsWarning(true);
+    } else {
+      setShowPeripheralsWarning(false);
+    }
+  }, [selectedSlug, detailPc?.id]);
 
   const toggleArr = (arr: string[], val: string, setter: (next: string[]) => void) => {
     setter(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
@@ -170,7 +183,7 @@ export const DesktopPcsPage: React.FC<DesktopPcsPageProps> = ({
     ];
 
     const handleAddToCartDetail = () => {
-      addToCart(detailPc.id, buildServiceId || 'fast', false);
+      addToCart(detailPc.id, buildServiceId || 'minimum', false);
       if (onNavigateToCheckout) {
         onNavigateToCheckout(detailPc.id);
       } else {
@@ -180,6 +193,14 @@ export const DesktopPcsPage: React.FC<DesktopPcsPageProps> = ({
 
     return (
       <div>
+        <PeripheralsWarningModal
+          isOpen={showPeripheralsWarning}
+          onAcknowledge={() => setShowPeripheralsWarning(false)}
+          onCancel={() => {
+            setShowPeripheralsWarning(false);
+            onNavigate('prebuilt-pcs');
+          }}
+        />
         <div className="border-b border-slate-200 bg-white">
           <div className="qtr-wrap py-10 sm:py-14">
             <nav
@@ -708,7 +729,7 @@ export const DesktopPcsPage: React.FC<DesktopPcsPageProps> = ({
                           {pc.components.find((c) => c.category === 'CPU Cooler')?.name || pc.specsSummary.cooler}
                         </span>
                         <span className="rounded bg-slate-100 px-2 py-1 text-[10.5px] font-medium text-slate-600">
-                          {pc.components.find((c) => c.category === 'Graphics')?.name || pc.specsSummary.gpu}
+                          {pc.components.find((c) => c.category === 'GPU')?.name || pc.specsSummary.gpu}
                         </span>
                       </div>
                       <div className="mt-auto pt-5">

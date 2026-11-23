@@ -19,9 +19,10 @@ import {
 } from 'lucide-react';
 import { useCart } from '../context/CartContext.tsx';
 import {
-  BUILD_SERVICES,
-  formatAud
+  formatAud,
+  resolveAssemblyPackage
 } from '../utils/pricing.ts';
+import { isVerifiedNonPlaceholderImage } from '../data/builderCatalog.ts';
 import { AddToCalendarButton } from '../components/AddToCalendarButton.tsx';
 import { ServiceDisclaimerModal } from '../components/ServiceDisclaimerModal.tsx';
 import {
@@ -45,6 +46,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     cartItem,
     componentItems,
     buildServiceId,
+    assemblyPackages,
     updateBuildService,
     deliveryMethodId,
     updateDeliveryMethod,
@@ -95,13 +97,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const [orderConfirmation, setOrderConfirmation] = useState<any | null>(null);
   const [copiedRef, setCopiedRef] = useState(false);
 
+  const activeBuildService = resolveAssemblyPackage(buildServiceId, assemblyPackages);
   const pcQty = cartItem ? cartItem.quantity : 0;
   const pcPartsSubtotal = cartItem ? cartItem.pc.basePrice * pcQty : 0;
   const componentsSubtotal = componentItems.reduce(
     (sum, item) => sum + item.part.price * item.quantity,
     0
   );
-  const buildServicePrice = cartItem ? BUILD_SERVICES[buildServiceId].price : 0;
+  const buildServicePrice = cartItem ? activeBuildService.price : 0;
   const deliveryPrice =
     deliveryMethodId === 'pickup'
       ? 0
@@ -188,12 +191,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
         pcQuantity: pcQty,
         componentItems: componentItems.map((item) => ({
           id: item.part.id,
+          partId: item.part.id,
           name: item.part.name,
           category: item.part.category,
           price: item.part.price,
           quantity: item.quantity
         })),
-        buildServiceId: cartItem ? buildServiceId : 'fast',
+        buildServiceId: cartItem ? activeBuildService.id : 'minimum',
         deliveryMethodId,
         paymentMethod: 'card',
         notes: notes.trim() || undefined,
@@ -421,6 +425,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       <PeripheralsWarningModal
         isOpen={showPeripheralsModal}
         onAcknowledge={() => setShowPeripheralsModal(false)}
+        onCancel={() => {
+          setShowPeripheralsModal(false);
+          onNavigate?.('builder');
+        }}
       />
 
       {/* Page Header */}
@@ -578,6 +586,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
                 {componentItems.map(({ part, quantity }) => (
                   <li key={part.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
+                    {isVerifiedNonPlaceholderImage(part.image) && (
+                      <img
+                        src={part.image}
+                        alt={part.name}
+                        className="h-12 w-12 shrink-0 rounded border border-slate-200 bg-white object-contain p-1"
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-blue">
                         {part.category} · {part.brand}
@@ -631,96 +646,69 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 ))}
               </ul>
 
-              {/* Build Service Selection (for PC systems) */}
+              {/* 3-Tier Build Service Selection (for PC systems) */}
               {cartItem && (
                 <section className="rounded-md border border-slate-200 bg-white p-4 sm:p-5">
                   <div className="flex items-center gap-2">
                     <Wrench className="h-[15px] w-[15px] text-brand-blue" />
                     <h2 className="font-heading text-[15px] font-bold text-navy">
-                      Choose a build service
+                      Choose an assembly package
                     </h2>
                   </div>
                   <p className="mt-1 text-[12px] leading-relaxed text-slate-600">
-                    One build service applies to your prebuilt system. It is never charged twice,
-                    and Windows is already included in the parts price.
+                    One assembly package applies per PC build. It is never charged twice, and Windows setup (Options 2 &amp; 3) uses your included licence.
                   </p>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {/* Fast Build */}
-                    <button
-                      type="button"
-                      aria-pressed={buildServiceId === 'fast'}
-                      onClick={() => updateBuildService('fast')}
-                      className={`flex h-full flex-col rounded-md border p-4 text-left transition ${
-                        buildServiceId === 'fast'
-                          ? 'border-brand-blue bg-sky-50/50 ring-1 ring-brand-blue'
-                          : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <span className="font-heading text-[13.5px] font-bold text-navy">
-                          Fast Build
-                        </span>
-                        <span className="shrink-0 font-heading text-[14px] font-extrabold text-navy">
-                          A$100.00
-                        </span>
-                      </div>
-                      <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600">
-                        Assembled correctly, connections checked, power-on self-test (POST) only.
-                      </p>
-                      <ul className="mt-3 space-y-1.5">
-                        {BUILD_SERVICES.fast.includes.map((item) => (
-                          <li key={item} className="flex gap-1.5 text-[11.5px] leading-snug text-slate-700">
-                            <Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                        {BUILD_SERVICES.fast.doesNotInclude.map((item) => (
-                          <li key={item} className="flex gap-1.5 text-[11.5px] leading-snug text-slate-500">
-                            <X className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" />
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      <p className="mt-3 border-t border-slate-200 pt-2.5 text-[11px] leading-relaxed text-slate-600">
-                        {BUILD_SERVICES.fast.footnote}
-                      </p>
-                    </button>
-
-                    {/* Full Build & Setup */}
-                    <button
-                      type="button"
-                      aria-pressed={buildServiceId === 'full'}
-                      onClick={() => updateBuildService('full')}
-                      className={`flex h-full flex-col rounded-md border p-4 text-left transition ${
-                        buildServiceId === 'full'
-                          ? 'border-brand-blue bg-sky-50/50 ring-1 ring-brand-blue'
-                          : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <span className="font-heading text-[13.5px] font-bold text-navy">
-                          Full Build &amp; Setup
-                        </span>
-                        <span className="shrink-0 font-heading text-[14px] font-extrabold text-navy">
-                          A$250.00
-                        </span>
-                      </div>
-                      <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600">
-                        {BUILD_SERVICES.full.description}
-                      </p>
-                      <ul className="mt-3 space-y-1.5">
-                        {BUILD_SERVICES.full.includes.map((item) => (
-                          <li key={item} className="flex gap-1.5 text-[11.5px] leading-snug text-slate-700">
-                            <Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      <p className="mt-3 border-t border-slate-200 pt-2.5 text-[11px] leading-relaxed text-slate-600">
-                        {BUILD_SERVICES.full.footnote}
-                      </p>
-                    </button>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    {assemblyPackages
+                      .filter((pkg) => pkg.enabled !== false)
+                      .map((pkg) => {
+                        const isSelected = activeBuildService.id === pkg.id;
+                        return (
+                          <button
+                            key={pkg.id}
+                            type="button"
+                            aria-pressed={isSelected}
+                            onClick={() => updateBuildService(pkg.id)}
+                            className={`flex h-full flex-col rounded-md border p-4 text-left transition ${
+                              isSelected
+                                ? 'border-brand-blue bg-sky-50/50 ring-1 ring-brand-blue'
+                                : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="font-heading text-[13px] font-bold text-navy">
+                                {pkg.name}
+                              </span>
+                              <span className="shrink-0 font-heading text-[13.5px] font-extrabold text-navy">
+                                {formatAud(pkg.price)}
+                              </span>
+                            </div>
+                            <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-600">
+                              {pkg.description}
+                            </p>
+                            <ul className="mt-3 space-y-1.5">
+                              {pkg.includes.map((item) => (
+                                <li key={item} className="flex gap-1.5 text-[11px] leading-snug text-slate-700">
+                                  <Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                              {pkg.doesNotInclude.map((item) => (
+                                <li key={item} className="flex gap-1.5 text-[11px] leading-snug text-slate-500">
+                                  <X className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" />
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            {pkg.footnote && (
+                              <p className="mt-auto border-t border-slate-200 pt-2.5 mt-3 text-[10.5px] leading-relaxed text-slate-600">
+                                {pkg.footnote}
+                              </p>
+                            )}
+                          </button>
+                        );
+                      })}
                   </div>
                 </section>
               )}
@@ -906,7 +894,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                   )}
                   {cartItem && (
                     <div className="flex justify-between text-[12.5px] text-slate-600">
-                      <span>Build service ({BUILD_SERVICES[buildServiceId].name})</span>
+                      <span>Build service ({activeBuildService.name})</span>
                       <span className="font-semibold text-navy">{formatAud(buildServicePrice)}</span>
                     </div>
                   )}

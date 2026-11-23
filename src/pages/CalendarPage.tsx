@@ -187,7 +187,8 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
       setEventToDelete(null);
       await fetchEvents();
     } catch (err: any) {
-      alert(`Error deleting calendar event: ${err.message || 'Operation failed'}`);
+      setEventError(`Error deleting calendar event: ${err.message || 'Operation failed'}`);
+      setEventToDelete(null);
     } finally {
       setDeletingEvent(false);
     }

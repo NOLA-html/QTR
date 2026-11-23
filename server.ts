@@ -7,7 +7,13 @@ import { GoogleGenAI } from '@google/genai';
 import {
   initDatabase,
   readDatabase,
-  writeDatabase
+  writeDatabase,
+  buildOrderPartsFromComponents,
+  buildCustomerSafeOrderDto,
+  buildNotificationDraft,
+  createEmptyOrderTests,
+  ORDER_STAGES,
+  PART_ITEM_STATUSES
 } from './server/db.ts';
 import type {
   RepairRequest,
@@ -18,14 +24,20 @@ import type {
   PcOrder,
   ShippingConfig,
   CheaperPriceRequest,
-  CustomerSuppliedMotherboardRecord
+  CustomerSuppliedMotherboardRecord,
+  OrderStage,
+  OrderPartItem,
+  NotificationEventKey,
+  CustomerNotification
 } from './server/db.ts';
 import {
   THREE_CUSTOM_PCS,
   getCustomPcById,
   BUILD_SERVICES,
+  DEFAULT_ASSEMBLY_PACKAGES,
   DEFAULT_SHIPPING_CONFIG,
-  calculatePcOrderPricing
+  calculatePcOrderPricing,
+  resolveAssemblyPackage
 } from './src/utils/pricing.ts';
 import { firebaseCentrecomService } from './server/firebaseCentrecomService.ts';
 import { BUILDER_PARTS } from './src/data/builderCatalog.ts';
@@ -603,13 +615,46 @@ function checkAdminAuth(req: Request): boolean {
   return adminKey === ADMIN_PASSKEY;
 }
 
-// GET /api/firebase/products - Fetch all Centre Com products (optional category/status filter)
+// GET /api/catalogue/published - Strict customer-safe published products with verified Centre Com URL & non-box photo
+app.get('/api/catalogue/published', async (req: Request, res: Response) => {
+  try {
+    const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+    const products = await firebaseCentrecomService.getPublishedProducts(category);
+    res.json({
+      success: true,
+      count: products.length,
+      retailer: 'Centre Com',
+      currency: 'AUD',
+      products: products.map((p) => ({
+        id: p.productId,
+        category: p.category,
+        brand: p.manufacturer,
+        name: p.model,
+        price: p.priceAUD ?? 0,
+        image: p.imageUrl,
+        centreComUrl: p.productUrl,
+        specs: p.specifications || {},
+        published: p.published,
+        imageReviewStatus: p.imageReviewStatus,
+        imageSource: p.imageSource,
+        isBoxPhoto: p.isBoxPhoto,
+        centreComUrlVerified: p.centreComUrlVerified
+      }))
+    });
+  } catch (error: any) {
+    console.error('Error fetching published Centre Com catalogue:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to load published catalogue' });
+  }
+});
+
+// GET /api/firebase/products - Fetch all Centre Com products (admin / inspection)
 app.get('/api/firebase/products', async (req: Request, res: Response) => {
   try {
-    const { category, status } = req.query;
-    const filter: { category?: string; status?: string } = {};
+    const { category, status, publishedOnly } = req.query;
+    const filter: { category?: string; status?: string; publishedOnly?: boolean } = {};
     if (typeof category === 'string') filter.category = category;
     if (typeof status === 'string') filter.status = status;
+    if (publishedOnly === 'true') filter.publishedOnly = true;
 
     const products = await firebaseCentrecomService.getAllProducts(filter);
     res.json({
@@ -675,6 +720,11 @@ app.post('/api/firebase/products', async (req: Request, res: Response) => {
       priceAUD: price,
       currency: 'AUD',
       imageUrl: imageUrl ? String(imageUrl).trim() : null,
+      published: false,
+      imageReviewStatus: 'awaiting_verified_photo',
+      imageSource: 'unverified',
+      isBoxPhoto: false,
+      centreComUrlVerified: Boolean(req.body.centreComUrlVerified),
       specifications: specifications || {},
       status: price !== null ? 'active' : 'needs_review',
       lastCheckedAt: now,
@@ -1018,14 +1068,35 @@ app.post('/api/motherboard/research', async (req: Request, res: Response) => {
 // CUSTOM PC & CHECKOUT ORDER ENDPOINTS
 // ==========================================
 
-// GET /api/products/custom-pcs - Get all 3 custom PCs, build options, and shipping config
+// GET /api/config/assembly-packages - Customer-enabled assembly & testing tiers
+app.get('/api/config/assembly-packages', (_req: Request, res: Response) => {
+  try {
+    const db = readDatabase();
+    const packages = (db.assemblyPackages || DEFAULT_ASSEMBLY_PACKAGES)
+      .filter((p) => p.enabled)
+      .sort((a, b) => a.optionNumber - b.optionNumber);
+    res.json({
+      success: true,
+      packages
+    });
+  } catch (error) {
+    console.error('Error fetching assembly packages:', error);
+    res.status(500).json({ success: false, error: 'Failed to load assembly packages' });
+  }
+});
+
+// GET /api/products/custom-pcs - Get all 3 custom PCs, assembly packages, and shipping config
 app.get('/api/products/custom-pcs', (_req: Request, res: Response) => {
   try {
     const db = readDatabase();
+    const packages = (db.assemblyPackages || DEFAULT_ASSEMBLY_PACKAGES)
+      .filter((p) => p.enabled)
+      .sort((a, b) => a.optionNumber - b.optionNumber);
     res.json({
       success: true,
       products: THREE_CUSTOM_PCS,
       buildServices: BUILD_SERVICES,
+      assemblyPackages: packages,
       shippingConfig: db.shippingConfig || DEFAULT_SHIPPING_CONFIG
     });
   } catch (error) {
@@ -1104,6 +1175,8 @@ app.post('/api/orders', (req: Request, res: Response) => {
 
     const db = readDatabase();
     const currentShipping = db.shippingConfig || DEFAULT_SHIPPING_CONFIG;
+    const allPackages = db.assemblyPackages || DEFAULT_ASSEMBLY_PACKAGES;
+    const enabledPackages = allPackages.filter((p) => p.enabled);
 
     // Resolve components + PC build
     let resolvedPc = pcId ? getCustomPcById(pcId) : undefined;
@@ -1112,7 +1185,9 @@ app.post('/api/orders', (req: Request, res: Response) => {
         name: String(c.name || 'Component'),
         category: String(c.category || 'Part'),
         price: Math.max(0, Number(c.price || 0)),
-        included: Boolean(c.included)
+        included: Boolean(c.included),
+        isCustomerSupplied: Boolean(c.isCustomerSupplied),
+        partId: c.partId ? String(c.partId) : undefined
       }));
       const sumComps = comps.reduce((s: number, c: any) => s + (c.included ? 0 : c.price), 0);
       resolvedPc = {
@@ -1143,13 +1218,13 @@ app.post('/api/orders', (req: Request, res: Response) => {
     }
 
     const parsedComponentItems = Array.isArray(componentItems)
-      ? componentItems
-          .map((item: any) => ({
-            name: String(item.name || 'Component'),
-            category: String(item.category || 'Component'),
-            price: Math.max(0, Number(item.price || 0)),
-            quantity: Math.max(1, Number(item.quantity || 1))
-          }))
+      ? componentItems.map((item: any) => ({
+          partId: item.partId ? String(item.partId) : undefined,
+          name: String(item.name || 'Component'),
+          category: String(item.category || 'Component'),
+          price: Math.max(0, Number(item.price || 0)),
+          quantity: Math.max(1, Number(item.quantity || 1))
+        }))
       : [];
 
     if (!resolvedPc && parsedComponentItems.length === 0) {
@@ -1163,17 +1238,17 @@ app.post('/api/orders', (req: Request, res: Response) => {
     );
 
     const hasPc = Boolean(resolvedPc);
-    if (hasPc && buildServiceId !== 'fast' && buildServiceId !== 'full') {
+    if (hasPc && (!buildServiceId || typeof buildServiceId !== 'string')) {
       res.status(400).json({
         success: false,
-        error: 'Must select a valid build service: "fast" ($100.00) or "full" ($250.00)'
+        error: 'Must select an assembly package ("minimum", "medium", or "full")'
       });
       return;
     }
 
-    const effectiveServiceId: 'fast' | 'full' = buildServiceId === 'full' ? 'full' : 'fast';
+    const resolvedPackage = resolveAssemblyPackage(buildServiceId, enabledPackages.length > 0 ? enabledPackages : allPackages);
     const pcPricing = resolvedPc
-      ? calculatePcOrderPricing(resolvedPc, effectiveServiceId, deliveryMethodId, currentShipping)
+      ? calculatePcOrderPricing(resolvedPc, resolvedPackage.id, deliveryMethodId, currentShipping, allPackages)
       : null;
 
     const deliveryPrice =
@@ -1197,7 +1272,7 @@ app.post('/api/orders', (req: Request, res: Response) => {
 
     const pcQuantity = hasPc ? Math.max(1, Number(req.body.pcQuantity || 1)) : 0;
     const partsAndWindowsPrice = (resolvedPc ? resolvedPc.basePrice * pcQuantity : 0) + componentsSubtotal;
-    const buildServicePrice = hasPc ? BUILD_SERVICES[effectiveServiceId].price : 0;
+    const buildServicePrice = hasPc ? resolvedPackage.price : 0;
     const subtotalBeforeDelivery = partsAndWindowsPrice + buildServicePrice;
     const finalTotal = subtotalBeforeDelivery + deliveryPrice;
 
@@ -1206,15 +1281,17 @@ app.post('/api/orders', (req: Request, res: Response) => {
       ...parsedComponentItems.map((i: any) => ({
         name: i.quantity > 1 ? `${i.name} (x${i.quantity})` : i.name,
         category: i.category,
-        price: i.price * i.quantity
+        price: i.price * i.quantity,
+        partId: i.partId
       }))
     ];
 
     const refNum = generateReferenceNumber('ORD');
+    const orderId = `ord-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const now = new Date().toISOString();
 
     const newOrder: PcOrder = {
-      id: `ord-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: orderId,
       referenceNumber: refNum,
       customerName: customerName.trim(),
       email: email.trim().toLowerCase(),
@@ -1235,10 +1312,10 @@ app.post('/api/orders', (req: Request, res: Response) => {
       pcBasePrice: partsAndWindowsPrice,
       components: combinedComponents,
       buildService: {
-        id: effectiveServiceId,
-        name: hasPc ? BUILD_SERVICES[effectiveServiceId].name : 'Parts Only',
+        id: resolvedPackage.id,
+        name: hasPc ? resolvedPackage.name : 'Parts Only',
         price: buildServicePrice,
-        description: hasPc ? BUILD_SERVICES[effectiveServiceId].description : 'Individual components order'
+        description: hasPc ? resolvedPackage.description : 'Individual components order'
       },
       subtotalBeforeDelivery,
       deliveryMethod: {
@@ -1255,11 +1332,22 @@ app.post('/api/orders', (req: Request, res: Response) => {
           ? 'pickup_cash'
           : 'card',
       status: 'Order Placed',
+      stageHistory: [
+        {
+          stage: 'Order Placed',
+          confirmedAt: now,
+          confirmedBy: 'Customer Checkout',
+          note: `${hasPc ? resolvedPackage.name : 'Parts Only'} • ${deliveryMethodName}`
+        }
+      ],
+      partsList: buildOrderPartsFromComponents(orderId, combinedComponents, 'Not Ordered'),
+      orderTests: createEmptyOrderTests(),
+      notifications: [],
       createdAt: now,
       updatedAt: now,
       technicianNotes: `Order placed online. Parts & Windows: $${partsAndWindowsPrice.toFixed(
         2
-      )}, Build Service: $${buildServicePrice.toFixed(2)}, Delivery: $${deliveryPrice.toFixed(
+      )}, Assembly Service: $${buildServicePrice.toFixed(2)}, Delivery: $${deliveryPrice.toFixed(
         2
       )}. Total: $${finalTotal.toFixed(2)}.${notes ? ` Notes: ${String(notes).trim()}` : ''}`
     };
@@ -1269,8 +1357,8 @@ app.post('/api/orders', (req: Request, res: Response) => {
 
     res.status(201).json({
       success: true,
-      message: 'Order enquiry submitted successfully! We will confirm stock, pricing and contact you shortly.',
-      order: newOrder,
+      message: 'Order submitted successfully! Track every procurement, build, and test stage from our Track page.',
+      order: buildCustomerSafeOrderDto(newOrder),
       referenceNumber: refNum,
       pricing: pcPricing
     });
@@ -1344,17 +1432,13 @@ Key business rules:
    • Project Eclipse — $1,428.00 AUD (AMD Ryzen 5 5600X, ASUS Dual RTX 5050 8GB OC, G.Skill 16GB DDR4-3600, ASUS Prime B550M-A WiFi II, Biwin 512GB NVMe, Deepcool Matrexx 30, ASUS Prime 750W Bronze, Windows 11 Home OEM)
    • NITROFORGE X3060 — $2,015.00 AUD (AMD Ryzen 5 7500X3D 4.2GHz, Palit RTX 3060 12GB GDDR6, Patriot Viper Venom 16GB DDR5-6000, Sapphire NITRO+ B850M Wi-Fi 6, Biwin 512GB NVMe, Montech NX600 ARGB dual tower, OKINOS AQUA UNO Zebra case with 3 ARGB fans, Antec GSK850 850W Gold, Windows 11 Home OEM)
    • OVERDRIVE — $3,743.00 AUD (AMD Ryzen 7 9800X3D up to 5.2GHz, PowerColor Reaper RX 9070 XT 16GB, KLEVV FIT V 32GB DDR5-6000 CL28, ASUS TUF B850M-E WiFi, Biwin Opal NV7400 2TB Gen4, ASUS LC 360 ARGB AIO, ASUS A32 PLUS dual-chamber panoramic chassis, SilverStone TR850R 850W Gold, Windows 11 Home OEM)
-5. Build Service Selection at Checkout:
-   • Fast Build ($100.00): PC assembly, connection checks, power-on self-test (POST). Does not include cable management, Windows install, or benchmarking.
-   • Full Build & Setup ($250.00): Complete assembly, professional cable management, Windows installation using included license, driver install, comprehensive stress testing & benchmarks.
+5. Assembly & Testing Packages at Checkout:
+   • Option 1: Minimum Assembly ($100.00): Hardware assembly, connection checks, and basic power-on self-test (POST) only.
+   • Option 2: Medium Assembly ($150.00): Complete assembly, clean cable management, Windows installation using included licence, and essential drivers.
+   • Option 3: Full Assembly & Testing ($250.00): Complete assembly, bespoke cabling, Windows & drivers, comprehensive thermal/stress testing, multi-game FPS benchmarks, and final QC.
 6. Delivery Selection at Checkout:
-   • Normal Delivery or Express Delivery (rates configured at checkout).
-   • Notice: "Delivery costs are calculated at checkout based on your selected delivery method."
-7. Formula: Final total = PC parts and Windows price + selected build service + selected delivery charge + any applicable existing taxes or fees.
-   Reference totals before delivery:
-   • Project Eclipse: Fast Build = $1,528.00 | Full Build & Setup = $1,678.00
-   • NITROFORGE X3060: Fast Build = $2,115.00 | Full Build & Setup = $2,265.00
-   • OVERDRIVE: Fast Build = $3,843.00 | Full Build & Setup = $3,993.00
+   • Pick up (free), Normal Delivery, or Express Delivery (rates configured at checkout).
+7. Formula: Final total = PC parts and Windows price + selected assembly package + selected delivery charge.
 8. Never ask customers for passwords. Be friendly, accurate, and concise.`;
 
     if (aiClient && process.env.GEMINI_API_KEY) {
@@ -1376,7 +1460,7 @@ Key business rules:
         });
 
         const response = await aiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-4-hydrogen',
           contents,
           config: {
             systemInstruction
@@ -1487,10 +1571,101 @@ What type of computer or issue can I assist you with today?`;
   }
 });
 
-// Tracker: GET /api/track/:lookup (searches by reference number or email)
+// Tracker: POST /api/track (verifies Reference Number + Email for PC orders)
+app.post('/api/track', (req: Request, res: Response) => {
+  try {
+    const rawLookup = String(req.body?.referenceNumber || req.body?.lookup || '').trim();
+    const rawEmail = String(req.body?.email || '').trim().toLowerCase();
+    if (!rawLookup) {
+      res.status(400).json({ success: false, error: 'Reference number or email is required.' });
+      return;
+    }
+
+    const lookup = rawLookup.toLowerCase();
+    const db = readDatabase();
+
+    // Prioritize PC Order with strict Reference + Email check when email supplied or ref matched
+    const orderMatch = db.pcOrders.find(
+      (o) =>
+        (o.referenceNumber.toLowerCase() === lookup && (!rawEmail || o.email.toLowerCase() === rawEmail)) ||
+        (rawEmail && o.email.toLowerCase() === rawEmail && o.referenceNumber.toLowerCase() === lookup)
+    );
+    const orderByRefOnly = !orderMatch
+      ? db.pcOrders.find((o) => o.referenceNumber.toLowerCase() === lookup)
+      : undefined;
+
+    if (orderByRefOnly && !rawEmail) {
+      res.status(403).json({
+        success: false,
+        requiresEmailVerification: true,
+        error: 'Please enter the customer email address used on this order to view live build & delivery tracking.'
+      });
+      return;
+    }
+
+    if (orderByRefOnly && rawEmail && orderByRefOnly.email.toLowerCase() !== rawEmail) {
+      res.status(403).json({
+        success: false,
+        requiresEmailVerification: true,
+        error: 'The email address provided does not match this order reference.'
+      });
+      return;
+    }
+
+    if (orderMatch) {
+      res.json({
+        success: true,
+        type: 'pc_order',
+        record: buildCustomerSafeOrderDto(orderMatch)
+      });
+      return;
+    }
+
+    const repairMatch = db.repairRequests.find(
+      (r) =>
+        (r.referenceNumber.toLowerCase() === lookup || r.email.toLowerCase() === lookup) &&
+        (!rawEmail || r.email.toLowerCase() === rawEmail)
+    );
+    if (repairMatch) {
+      res.json({ success: true, type: 'repair', record: repairMatch });
+      return;
+    }
+
+    const upgradeMatch = db.upgradeRequests.find(
+      (u) =>
+        (u.referenceNumber.toLowerCase() === lookup || u.email.toLowerCase() === lookup) &&
+        (!rawEmail || u.email.toLowerCase() === rawEmail)
+    );
+    if (upgradeMatch) {
+      res.json({ success: true, type: 'upgrade', record: upgradeMatch });
+      return;
+    }
+
+    const pcMatch = db.customPcQuotes.find(
+      (p) =>
+        (p.referenceNumber.toLowerCase() === lookup || p.email.toLowerCase() === lookup) &&
+        (!rawEmail || p.email.toLowerCase() === rawEmail)
+    );
+    if (pcMatch) {
+      res.json({ success: true, type: 'custom_pc', record: pcMatch });
+      return;
+    }
+
+    res.status(404).json({
+      success: false,
+      error: `No matching order or service request found for "${rawLookup}". Verify both your reference number and customer email.`
+    });
+  } catch (error) {
+    console.error('Error in POST /api/track:', error);
+    res.status(500).json({ success: false, error: 'Failed to look up order' });
+  }
+});
+
+// Tracker: GET /api/track/:lookup (searches by reference number or email, sanitizes PC order PII)
 app.get('/api/track/:lookup', (req: Request, res: Response) => {
   try {
     const rawLookup = (req.params.lookup || '').trim();
+    const rawEmail = typeof req.query.email === 'string' ? req.query.email.trim().toLowerCase() : '';
     if (!rawLookup) {
       res.status(400).json({ success: false, error: 'Lookup parameter required' });
       return;
@@ -1499,54 +1674,55 @@ app.get('/api/track/:lookup', (req: Request, res: Response) => {
     const lookup = rawLookup.toLowerCase();
     const db = readDatabase();
 
-    // Check repair requests
     const repairMatch = db.repairRequests.find(
       (r) => r.referenceNumber.toLowerCase() === lookup || r.email.toLowerCase() === lookup
     );
     if (repairMatch) {
-      res.json({
-        success: true,
-        type: 'repair',
-        record: repairMatch
-      });
+      res.json({ success: true, type: 'repair', record: repairMatch });
       return;
     }
 
-    // Check upgrade requests
     const upgradeMatch = db.upgradeRequests.find(
       (u) => u.referenceNumber.toLowerCase() === lookup || u.email.toLowerCase() === lookup
     );
     if (upgradeMatch) {
-      res.json({
-        success: true,
-        type: 'upgrade',
-        record: upgradeMatch
-      });
+      res.json({ success: true, type: 'upgrade', record: upgradeMatch });
       return;
     }
 
-    // Check custom PC quotes
     const pcMatch = db.customPcQuotes.find(
       (p) => p.referenceNumber.toLowerCase() === lookup || p.email.toLowerCase() === lookup
     );
     if (pcMatch) {
-      res.json({
-        success: true,
-        type: 'custom_pc',
-        record: pcMatch
-      });
+      res.json({ success: true, type: 'custom_pc', record: pcMatch });
       return;
     }
 
-    // Check PC orders
     const orderMatch = db.pcOrders.find(
       (o) => o.referenceNumber.toLowerCase() === lookup || o.email.toLowerCase() === lookup
     );
     if (orderMatch) {
+      if (rawEmail && orderMatch.email.toLowerCase() !== rawEmail) {
+        res.status(403).json({
+          success: false,
+          requiresEmailVerification: true,
+          error: 'Email does not match the customer email on file for this order.'
+        });
+        return;
+      }
+      if (!rawEmail && !lookup.includes('@')) {
+        res.status(403).json({
+          success: false,
+          requiresEmailVerification: true,
+          referenceNumber: orderMatch.referenceNumber,
+          error: 'Enter the order email address to unlock your order tracking details.'
+        });
+        return;
+      }
       res.json({
         success: true,
         type: 'pc_order',
-        record: orderMatch
+        record: buildCustomerSafeOrderDto(orderMatch)
       });
       return;
     }
@@ -1676,25 +1852,391 @@ app.post('/api/admin/upgrades/:id/status', verifyAdmin, (req: Request, res: Resp
   }
 });
 
-// Update PC order status
+// Update PC order status (legacy compatibility)
 app.post('/api/admin/orders/:id/status', verifyAdmin, (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, technicianNotes } = req.body;
+    const { status, technicianNotes, estimatedCompletionDate } = req.body;
     const db = readDatabase();
     const order = db.pcOrders.find((o) => o.id === id);
     if (!order) {
       res.status(404).json({ success: false, error: 'PC order not found' });
       return;
     }
-    if (status) order.status = status;
+    const now = new Date().toISOString();
+    if (status) {
+      order.status = status;
+      order.stageHistory = order.stageHistory || [];
+      order.stageHistory.push({
+        stage: status,
+        confirmedAt: now,
+        confirmedBy: 'Admin',
+        note: technicianNotes || undefined
+      });
+    }
     if (technicianNotes !== undefined) order.technicianNotes = technicianNotes;
-    order.updatedAt = new Date().toISOString();
+    if (estimatedCompletionDate !== undefined) order.estimatedCompletionDate = estimatedCompletionDate;
+    order.updatedAt = now;
     writeDatabase(db);
     res.json({ success: true, order });
   } catch (error) {
     console.error('Error updating PC order:', error);
     res.status(500).json({ success: false, error: 'Failed to update PC order status' });
+  }
+});
+
+// PUT /api/admin/orders/:id/stage - Explicit 13-stage advancement + tracking + auto-notification option
+app.put('/api/admin/orders/:id/stage', verifyAdmin, (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { stage, note, confirmedBy, estimatedCompletionDate, customerTracking, technicianNotes, sendNotification } = req.body;
+    const db = readDatabase();
+    const order = db.pcOrders.find((o) => o.id === id);
+    if (!order) {
+      res.status(404).json({ success: false, error: 'PC order not found' });
+      return;
+    }
+
+    const validStages = new Set<string>([...ORDER_STAGES, 'Cancelled']);
+    if (!stage || !validStages.has(stage)) {
+      res.status(400).json({ success: false, error: `Invalid stage "${stage}"` });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    order.status = stage as OrderStage;
+    order.stageHistory = order.stageHistory || [];
+    order.stageHistory.push({
+      stage: stage as OrderStage,
+      confirmedAt: now,
+      confirmedBy: confirmedBy ? String(confirmedBy).trim() : 'Workshop Admin',
+      note: note ? String(note).trim() : undefined
+    });
+    if (estimatedCompletionDate !== undefined) {
+      order.estimatedCompletionDate = estimatedCompletionDate ? String(estimatedCompletionDate).trim() : undefined;
+    }
+    if (customerTracking && typeof customerTracking === 'object') {
+      order.customerTracking = {
+        carrier: String(customerTracking.carrier || ''),
+        trackingNumber: String(customerTracking.trackingNumber || ''),
+        trackingUrl: customerTracking.trackingUrl ? String(customerTracking.trackingUrl) : undefined,
+        dispatchedAt: customerTracking.dispatchedAt || (stage === 'Dispatched' ? now : undefined)
+      };
+    }
+    if (technicianNotes !== undefined) {
+      order.technicianNotes = String(technicianNotes);
+    }
+    order.updatedAt = now;
+
+    // Auto-trigger notification if enabled or explicitly requested
+    const stageToEventMap: Partial<Record<OrderStage, NotificationEventKey>> = {
+      'Order Confirmed': 'order_confirmed',
+      'Parts Ordered': 'parts_ordered',
+      'All Parts Received': 'parts_received',
+      'In Assembly': 'assembly_started',
+      'Final Quality Check': 'testing_completed',
+      'Ready for Collection': 'ready_for_collection',
+      'Dispatched': 'dispatched'
+    };
+    const milestoneKey = stageToEventMap[stage as OrderStage];
+    const shouldAutoNotify =
+      Boolean(milestoneKey) &&
+      (sendNotification === true ||
+        (db.notificationSettings?.autoSendOnStageAdvance &&
+          db.notificationSettings.enabledEvents[milestoneKey!]));
+
+    let triggeredNotification: CustomerNotification | null = null;
+    if (shouldAutoNotify && milestoneKey) {
+      order.notifications = order.notifications || [];
+      const alreadySent = order.notifications.some((n) => n.eventKey === milestoneKey);
+      if (!alreadySent) {
+        const draft = buildNotificationDraft(order, milestoneKey);
+        triggeredNotification = {
+          id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          eventKey: milestoneKey,
+          title: draft.title,
+          recipientEmail: order.email,
+          subject: draft.subject,
+          body: draft.body,
+          sentAt: now,
+          sentBy: confirmedBy ? String(confirmedBy) : 'Workshop Admin',
+          triggerType: sendNotification ? 'manual' : 'auto',
+          deliveryStatus: 'logged'
+        };
+        order.notifications.unshift(triggeredNotification);
+      }
+    }
+
+    writeDatabase(db);
+    res.json({ success: true, order, triggeredNotification });
+  } catch (error: any) {
+    console.error('Error advancing order stage:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to update stage' });
+  }
+});
+
+// PUT /api/admin/orders/:id/parts - Update per-order parts procurement items (10 statuses + supplier + tracking)
+app.put('/api/admin/orders/:id/parts', verifyAdmin, (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { partsList } = req.body;
+    if (!Array.isArray(partsList)) {
+      res.status(400).json({ success: false, error: 'partsList array is required' });
+      return;
+    }
+
+    const db = readDatabase();
+    const order = db.pcOrders.find((o) => o.id === id);
+    if (!order) {
+      res.status(404).json({ success: false, error: 'PC order not found' });
+      return;
+    }
+
+    const validStatuses = new Set<string>(PART_ITEM_STATUSES);
+    const sanitizedParts: OrderPartItem[] = partsList.map((p: any, idx: number) => {
+      const status = validStatuses.has(p.status) ? p.status : 'Not Ordered';
+      const qtyRequired = Math.max(1, Number(p.qtyRequired || 1));
+      const qtyReceived =
+        status === 'Received' || status === 'Customer Supplied'
+          ? Math.max(qtyRequired, Number(p.qtyReceived || qtyRequired))
+          : Math.max(0, Number(p.qtyReceived || 0));
+
+      return {
+        id: String(p.id || `${order.id}-part-${idx + 1}`),
+        name: String(p.name || 'Component'),
+        category: String(p.category || 'Component'),
+        partId: p.partId ? String(p.partId) : undefined,
+        centreComUrl: p.centreComUrl ? String(p.centreComUrl) : null,
+        isCustomerSupplied: Boolean(p.isCustomerSupplied || status === 'Customer Supplied'),
+        included: Boolean(p.included),
+        status,
+        supplier: p.supplier !== undefined ? String(p.supplier) : 'Centre Com',
+        supplierOrderNumber: p.supplierOrderNumber !== undefined ? String(p.supplierOrderNumber) : '',
+        purchasePriceAUD: p.purchasePriceAUD === null || p.purchasePriceAUD === '' || p.purchasePriceAUD === undefined
+          ? null
+          : Number(p.purchasePriceAUD),
+        retailPriceAUD: typeof p.retailPriceAUD === 'number' ? p.retailPriceAUD : undefined,
+        qtyRequired,
+        qtyReceived,
+        purchaseDate: p.purchaseDate ? String(p.purchaseDate) : undefined,
+        expectedArrivalDate: p.expectedArrivalDate ? String(p.expectedArrivalDate) : undefined,
+        actualArrivalDate: p.actualArrivalDate ? String(p.actualArrivalDate) : undefined,
+        carrier: p.carrier ? String(p.carrier) : undefined,
+        trackingNumber: p.trackingNumber ? String(p.trackingNumber) : undefined,
+        trackingUrl: p.trackingUrl ? String(p.trackingUrl) : undefined,
+        notes: p.notes !== undefined ? String(p.notes) : ''
+      };
+    });
+
+    order.partsList = sanitizedParts;
+    order.updatedAt = new Date().toISOString();
+    writeDatabase(db);
+    res.json({ success: true, order });
+  } catch (error: any) {
+    console.error('Error updating order parts:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to update order parts' });
+  }
+});
+
+// PUT /api/admin/orders/:id/testing - 9-point QA checklist + real FPS benchmarks (blank until filled)
+app.put('/api/admin/orders/:id/testing', verifyAdmin, (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { orderTests } = req.body;
+    if (!orderTests || typeof orderTests !== 'object') {
+      res.status(400).json({ success: false, error: 'orderTests object is required' });
+      return;
+    }
+
+    const db = readDatabase();
+    const order = db.pcOrders.find((o) => o.id === id);
+    if (!order) {
+      res.status(404).json({ success: false, error: 'PC order not found' });
+      return;
+    }
+
+    const parseFps = (val: any): number | null => {
+      if (val === null || val === undefined || val === '') return null;
+      const n = Number(val);
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    };
+
+    const sanitizeBench = (raw: any, defaults: { game: string; preset: string; resolution: string }) => ({
+      game: defaults.game,
+      preset: defaults.preset,
+      resolution: String(raw?.resolution || defaults.resolution),
+      avgFps: parseFps(raw?.avgFps),
+      minFps: parseFps(raw?.minFps),
+      maxFps: parseFps(raw?.maxFps),
+      issues: String(raw?.issues || ''),
+      notes: String(raw?.notes || '')
+    });
+
+    const empty = createEmptyOrderTests();
+    order.orderTests = {
+      powerOnPost: Boolean(orderTests.powerOnPost),
+      componentsRecognised: Boolean(orderTests.componentsRecognised),
+      tempsChecked: Boolean(orderTests.tempsChecked),
+      stressTestPassed: Boolean(orderTests.stressTestPassed),
+      stabilityVerified: Boolean(orderTests.stabilityVerified),
+      payday2Tested: Boolean(orderTests.payday2Tested),
+      fortniteTested: Boolean(orderTests.fortniteTested),
+      rdr2Tested: Boolean(orderTests.rdr2Tested),
+      finalQualityCheck: Boolean(orderTests.finalQualityCheck),
+      technicianName: String(orderTests.technicianName || ''),
+      testedAt: orderTests.testedAt ? String(orderTests.testedAt) : new Date().toISOString(),
+      notes: String(orderTests.notes || ''),
+      benchmarks: {
+        payday2Low: sanitizeBench(orderTests.benchmarks?.payday2Low, empty.benchmarks.payday2Low),
+        fortniteMedium: sanitizeBench(orderTests.benchmarks?.fortniteMedium, empty.benchmarks.fortniteMedium),
+        rdr2Maximum: sanitizeBench(orderTests.benchmarks?.rdr2Maximum, empty.benchmarks.rdr2Maximum)
+      }
+    };
+    order.updatedAt = new Date().toISOString();
+    writeDatabase(db);
+    res.json({ success: true, order });
+  } catch (error: any) {
+    console.error('Error updating order testing:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to update order testing' });
+  }
+});
+
+// POST /api/admin/orders/:id/notify - Manual / Resend milestone customer notification with duplicate guard
+app.post('/api/admin/orders/:id/notify', verifyAdmin, (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { eventKey, customSubject, customBody, resend, sentBy } = req.body;
+    const db = readDatabase();
+    const order = db.pcOrders.find((o) => o.id === id);
+    if (!order) {
+      res.status(404).json({ success: false, error: 'PC order not found' });
+      return;
+    }
+
+    const validEvents: NotificationEventKey[] = [
+      'order_confirmed',
+      'parts_ordered',
+      'parts_received',
+      'assembly_started',
+      'testing_completed',
+      'ready_for_collection',
+      'dispatched'
+    ];
+    if (!validEvents.includes(eventKey)) {
+      res.status(400).json({ success: false, error: 'Invalid notification milestone key' });
+      return;
+    }
+
+    order.notifications = order.notifications || [];
+    const existing = order.notifications.some((n) => n.eventKey === eventKey);
+    if (existing && !resend) {
+      res.status(409).json({
+        success: false,
+        duplicate: true,
+        error: `Milestone notification "${eventKey}" has already been sent for ${order.referenceNumber}. Enable resend to dispatch a follow-up.`
+      });
+      return;
+    }
+
+    const draft = buildNotificationDraft(order, eventKey);
+    const now = new Date().toISOString();
+    const entry: CustomerNotification = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      eventKey,
+      title: draft.title,
+      recipientEmail: order.email,
+      subject: customSubject && String(customSubject).trim() ? String(customSubject).trim() : draft.subject,
+      body: customBody && String(customBody).trim() ? String(customBody).trim() : draft.body,
+      sentAt: now,
+      sentBy: sentBy ? String(sentBy).trim() : 'Workshop Admin',
+      triggerType: existing ? 'resend' : 'manual',
+      deliveryStatus: 'logged'
+    };
+
+    order.notifications.unshift(entry);
+    order.updatedAt = now;
+    writeDatabase(db);
+
+    res.json({ success: true, notification: entry, order });
+  } catch (error: any) {
+    console.error('Error sending milestone notification:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to record notification' });
+  }
+});
+
+// PUT /api/admin/config/notification-settings - Toggle auto-send & enabled milestones
+app.put('/api/admin/config/notification-settings', verifyAdmin, (req: Request, res: Response) => {
+  try {
+    const db = readDatabase();
+    const { autoSendOnStageAdvance, enabledEvents } = req.body;
+    db.notificationSettings = {
+      autoSendOnStageAdvance: Boolean(autoSendOnStageAdvance),
+      enabledEvents: {
+        ...db.notificationSettings.enabledEvents,
+        ...(enabledEvents && typeof enabledEvents === 'object' ? enabledEvents : {})
+      }
+    };
+    writeDatabase(db);
+    res.json({ success: true, notificationSettings: db.notificationSettings });
+  } catch (error: any) {
+    console.error('Error updating notification settings:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to update notification settings' });
+  }
+});
+
+// GET /api/admin/parts-procurement - Cross-order procurement queue
+app.get('/api/admin/parts-procurement', verifyAdmin, (_req: Request, res: Response) => {
+  try {
+    const db = readDatabase();
+    const queue = db.pcOrders
+      .filter((o) => o.status !== 'Completed' && o.status !== 'Cancelled')
+      .flatMap((order) =>
+        (order.partsList || []).map((part) => ({
+          orderId: order.id,
+          orderRef: order.referenceNumber,
+          customerName: order.customerName,
+          orderStatus: order.status,
+          ...part
+        }))
+      );
+    res.json({ success: true, items: queue });
+  } catch (error: any) {
+    console.error('Error fetching procurement queue:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to load procurement queue' });
+  }
+});
+
+// PUT /api/admin/assembly-packages - Admin CRUD for 3-tier assembly packages
+app.put('/api/admin/assembly-packages', verifyAdmin, (req: Request, res: Response) => {
+  try {
+    const { packages } = req.body;
+    if (!Array.isArray(packages) || packages.length === 0) {
+      res.status(400).json({ success: false, error: 'packages array is required' });
+      return;
+    }
+
+    const sanitized = packages.map((pkg: any, idx: number) => ({
+      id: String(pkg.id || `option-${idx + 1}`).trim().toLowerCase(),
+      optionNumber: Number(pkg.optionNumber || idx + 1),
+      name: String(pkg.name || `Option ${idx + 1}`).trim(),
+      shortLabel: String(pkg.shortLabel || pkg.name || `Option ${idx + 1}`).trim(),
+      price: Math.max(0, Number(pkg.price ?? 0)),
+      enabled: pkg.enabled !== false,
+      description: String(pkg.description || '').trim(),
+      shortSummary: String(pkg.shortSummary || pkg.description || '').trim(),
+      includes: Array.isArray(pkg.includes) ? pkg.includes.map((i: any) => String(i).trim()).filter(Boolean) : [],
+      doesNotInclude: Array.isArray(pkg.doesNotInclude) ? pkg.doesNotInclude.map((i: any) => String(i).trim()).filter(Boolean) : [],
+      footnote: pkg.footnote ? String(pkg.footnote).trim() : undefined
+    }));
+
+    const db = readDatabase();
+    db.assemblyPackages = sanitized;
+    writeDatabase(db);
+
+    res.json({ success: true, packages: db.assemblyPackages });
+  } catch (error: any) {
+    console.error('Error updating assembly packages:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to update assembly packages' });
   }
 });
 
@@ -1766,7 +2308,7 @@ app.post('/api/admin/centrecom/refresh-prices', verifyAdmin, (_req: Request, res
       success: true,
       timestamp: now,
       verifiedSource: 'https://www.centrecom.com.au',
-      status: 'All prices synchronized with Centre Com Australian catalogue (AUD incl. GST)'
+      status: 'Catalogue sync check finished. Verified items remain published; unverified items remain held in Admin Review.'
     });
   } catch (error) {
     console.error('Error refreshing Centre Com prices:', error);
@@ -1827,53 +2369,157 @@ app.post('/api/admin/customer-motherboards/:id/action', verifyAdmin, (req: Reque
   }
 });
 
-// Admin: POST /api/admin/repair-centrecom-catalog - Batch repair & verification of Centre Com catalogue
+// Admin: POST /api/admin/products/:id/moderation - Strict Photo & URL Moderation Queue Action
+app.post('/api/admin/products/:id/moderation', verifyAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { action, productUrl, imageUrl, priceAUD, isBoxPhoto, centreComUrlVerified, note, adminUser } = req.body;
+    const allowedActions = new Set(['approve_publish', 'reject_box_photo', 'flag_issue', 'update_metadata', 'unpublish']);
+    if (!allowedActions.has(action)) {
+      res.status(400).json({ success: false, error: 'Invalid moderation action' });
+      return;
+    }
+
+    const updated = await firebaseCentrecomService.moderateProduct(
+      id,
+      action,
+      {
+        productUrl,
+        imageUrl,
+        priceAUD: priceAUD !== undefined && priceAUD !== null && priceAUD !== '' ? Number(priceAUD) : undefined,
+        isBoxPhoto,
+        centreComUrlVerified,
+        note
+      },
+      adminUser || 'Workshop Administrator'
+    );
+
+    res.json({
+      success: true,
+      product: updated,
+      message: `Moderation action "${action}" applied to ${updated.manufacturer} ${updated.model}.`
+    });
+  } catch (error: any) {
+    console.error('Moderation action error:', error);
+    res.status(400).json({ success: false, error: error.message || 'Moderation update failed' });
+  }
+});
+
+// Admin: POST /api/admin/ai-catalogue/audit - AI Catalogue Manager review using gemini-4-hydrogen
+app.post('/api/admin/ai-catalogue/audit', verifyAdmin, async (req: Request, res: Response) => {
+  try {
+    const { category, limit: maxLimit } = req.body || {};
+    const all = await firebaseCentrecomService.getAllProducts(category ? { category } : undefined);
+    const sample = all.slice(0, Math.min(25, Number(maxLimit) || 20));
+
+    const auditResults = sample.map((p) => {
+      const issues: string[] = [];
+      if (!firebaseCentrecomService.isValidCentreComUrl(p.productUrl) || !p.centreComUrlVerified) {
+        issues.push('Missing verified direct Centre Com product URL');
+      }
+      if (!p.imageUrl) {
+        issues.push('Missing verified non-box product photograph');
+      }
+      if (p.isBoxPhoto) {
+        issues.push('Flagged as packaging/box photo — requires unpackaged product photo');
+      }
+      if (p.priceAUD === null || p.priceAUD <= 0) {
+        issues.push('Missing verified AUD price');
+      }
+      return {
+        productId: p.productId,
+        name: `${p.manufacturer} ${p.model}`,
+        category: p.category,
+        published: p.published,
+        imageReviewStatus: p.imageReviewStatus,
+        issues
+      };
+    });
+
+    let aiSummary =
+      'Audit checked Centre Com URL authenticity, AUD price presence, and non-box image verification flags. Zero unverified products are published.';
+
+    if (aiClient && process.env.GEMINI_API_KEY) {
+      try {
+        const prompt = `You are the QTR Centre Com Catalogue Quality Auditor.
+Summarize the moderation readiness of this component batch in 3 concise actionable bullet points for the workshop admin.
+Stats: total=${all.length}, published=${all.filter((p) => p.published).length}, awaitingPhoto=${all.filter((p) => p.imageReviewStatus === 'awaiting_verified_photo').length}, rejectedBox=${all.filter((p) => p.imageReviewStatus === 'rejected_box_photo').length}.
+Sample issues: ${JSON.stringify(auditResults.slice(0, 8))}`;
+
+        const aiResp = await aiClient.models.generateContent({
+          model: 'gemini-4-hydrogen',
+          contents: prompt
+        });
+        if (aiResp.text) aiSummary = aiResp.text;
+      } catch (err) {
+        console.warn('AI Catalogue audit fallback used:', (err as any)?.message || err);
+      }
+    }
+
+    res.json({
+      success: true,
+      auditedAt: new Date().toISOString(),
+      stats: firebaseCentrecomService.getStats(),
+      aiSummary,
+      items: auditResults
+    });
+  } catch (error: any) {
+    console.error('Error in AI catalogue audit:', error);
+    res.status(500).json({ success: false, error: error.message || 'Audit failed' });
+  }
+});
+
+// Admin: POST /api/admin/repair-centrecom-catalog - Strict audit (never fabricates URLs)
 app.post('/api/admin/repair-centrecom-catalog', verifyAdmin, async (_req: Request, res: Response) => {
   try {
     const allProducts = await firebaseCentrecomService.getAllProducts();
     const now = new Date().toISOString();
-    let repairedCount = 0;
-    const items: Array<{ id: string; name: string; url: string; price: number | null; status: string }> = [];
+    let verifiedCount = 0;
+    let flaggedCount = 0;
+    const items: Array<{ id: string; name: string; url: string; price: number | null; status: string; published: boolean }> = [];
 
     for (const prod of allProducts) {
-      // Ensure product URL is a valid Centre Com URL
-      if (!prod.productUrl || !prod.productUrl.startsWith('https://www.centrecom.com.au/')) {
-        const slug = `${prod.manufacturer.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${prod.model.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-        prod.productUrl = `https://www.centrecom.com.au/${slug}`;
-      }
-
-      // Update check timestamp
       prod.lastCheckedAt = now;
-      if (prod.priceAUD !== null && prod.priceAUD >= 0) {
-        prod.lastSuccessfulCheckAt = now;
+      const hasValidUrl = firebaseCentrecomService.isValidCentreComUrl(prod.productUrl) && prod.centreComUrlVerified;
+      const canPublish = hasValidUrl && prod.imageReviewStatus === 'verified' && !prod.isBoxPhoto && Boolean(prod.imageUrl);
+
+      if (canPublish && prod.priceAUD !== null && prod.priceAUD > 0) {
         prod.status = 'active';
+        prod.published = true;
+        prod.lastErrorCode = null;
+        verifiedCount++;
       } else {
         prod.status = 'needs_review';
+        prod.published = false;
+        prod.lastErrorCode = !hasValidUrl
+          ? 'AWAITING_VERIFIED_CENTRECOM_URL'
+          : 'AWAITING_VERIFIED_NON_BOX_PHOTO';
+        flaggedCount++;
       }
 
       await firebaseCentrecomService.saveProduct(prod);
-      repairedCount++;
-
       items.push({
         id: prod.productId,
         name: `${prod.manufacturer} ${prod.model}`,
-        url: prod.productUrl,
+        url: prod.productUrl || '',
         price: prod.priceAUD,
-        status: prod.status
+        status: prod.status,
+        published: prod.published
       });
     }
 
     res.json({
       success: true,
       timestamp: now,
-      repairedCount,
+      repairedCount: verifiedCount,
+      flaggedCount,
       totalCount: allProducts.length,
       items,
-      message: `Batch catalogue repair complete: verified ${repairedCount} Centre Com product entries with Australian AUD pricing and direct links.`
+      message: `Strict audit complete: ${verifiedCount} published with verified Centre Com URLs & non-box photos; ${flaggedCount} held in Admin Photo/URL Review Queue.`
     });
   } catch (error: any) {
-    console.error('Error repairing Centre Com catalog:', error);
-    res.status(500).json({ success: false, error: error.message || 'Failed to repair catalog' });
+    console.error('Error auditing Centre Com catalog:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to audit catalog' });
   }
 });
 

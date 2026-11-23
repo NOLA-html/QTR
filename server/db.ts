@@ -1,5 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  DEFAULT_ASSEMBLY_PACKAGES,
+  type AssemblyPackage
+} from '../src/utils/pricing.ts';
+import {
+  createDefaultNotificationSettings,
+  createEmptyOrderTests,
+  normalizeLegacyOrderStage,
+  type CustomerNotification,
+  type NotificationSettings,
+  type OrderPartItem,
+  type OrderStage,
+  type OrderStageEntry,
+  type OrderTestRecord
+} from './orderLogic.ts';
+
+export * from './orderLogic.ts';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -109,9 +126,9 @@ export interface PcOrder {
   pcId: string;
   pcName: string;
   pcBasePrice: number;
-  components: { name: string; category: string; price: number; included?: boolean }[];
+  components: { name: string; category: string; price: number; included?: boolean; isCustomerSupplied?: boolean; partId?: string }[];
   buildService: {
-    id: 'fast' | 'full';
+    id: string;
     name: string;
     price: number;
     description: string;
@@ -125,7 +142,18 @@ export interface PcOrder {
   };
   finalTotal: number;
   paymentMethod: 'card' | 'bank_transfer' | 'pickup_cash';
-  status: 'Order Placed' | 'Parts Prepared' | 'Assembling' | 'Testing & Quality Check' | 'Ready for Dispatch' | 'Delivered';
+  status: OrderStage;
+  stageHistory: OrderStageEntry[];
+  partsList: OrderPartItem[];
+  orderTests: OrderTestRecord;
+  notifications: CustomerNotification[];
+  estimatedCompletionDate?: string;
+  customerTracking?: {
+    carrier: string;
+    trackingNumber: string;
+    trackingUrl?: string;
+    dispatchedAt?: string;
+  };
   createdAt: string;
   updatedAt: string;
   technicianNotes?: string;
@@ -145,7 +173,7 @@ export interface CheaperPriceRequest {
   competitorName: string;
   competitorUrl: string;
   competitorPrice: number;
-  priceDelta: number; // centreComPrice - competitorPrice
+  priceDelta: number;
   isBrandNew: boolean;
   isInStock: boolean;
   notes?: string;
@@ -209,9 +237,50 @@ export interface DatabaseSchema {
   contactMessages: ContactMessage[];
   pcOrders: PcOrder[];
   shippingConfig: ShippingConfig;
+  assemblyPackages: AssemblyPackage[];
+  notificationSettings: NotificationSettings;
   cheaperPriceRequests: CheaperPriceRequest[];
   customerSuppliedMotherboards: CustomerSuppliedMotherboardRecord[];
 }
+
+export function buildOrderPartsFromComponents(
+  orderId: string,
+  components: Array<{ name: string; category: string; price: number; included?: boolean; isCustomerSupplied?: boolean; partId?: string }>,
+  defaultStatus: OrderPartItem['status'] = 'Not Ordered'
+): OrderPartItem[] {
+  return components.map((comp, idx) => {
+    const isSupplied = Boolean(comp.isCustomerSupplied);
+    const isIncluded = Boolean(comp.included);
+    return {
+      id: `${orderId}-part-${idx + 1}`,
+      name: comp.name,
+      category: comp.category,
+      partId: comp.partId,
+      isCustomerSupplied: isSupplied,
+      included: isIncluded,
+      status: isSupplied ? 'Customer Supplied' : isIncluded ? 'Received' : defaultStatus,
+      supplier: isSupplied ? 'Customer Supplied' : 'Centre Com',
+      supplierOrderNumber: '',
+      purchasePriceAUD: null,
+      retailPriceAUD: comp.price,
+      qtyRequired: 1,
+      qtyReceived: isSupplied || isIncluded || defaultStatus === 'Received' ? 1 : 0,
+      notes: ''
+    };
+  });
+}
+
+const sampleComponents = [
+  { name: 'AMD Ryzen 5 5600X, 6 cores / 12 threads', category: 'CPU', price: 199.0 },
+  { name: 'AMD Wraith Stealth, included with CPU', category: 'CPU Cooler', price: 0.0, included: true },
+  { name: 'ASUS Prime B550M-A WiFi II AM4 Micro-ATX', category: 'Motherboard', price: 129.0 },
+  { name: 'ASUS Dual GeForce RTX 5050 8GB OC GDDR6', category: 'GPU', price: 499.0 },
+  { name: 'G.Skill Trident Z RGB 16GB (2 × 8GB) DDR4-3600 CL16', category: 'RAM', price: 199.0 },
+  { name: 'Biwin Black Opal NV3500 512GB PCIe Gen 3 M.2', category: 'SSD', price: 99.0 },
+  { name: 'Deepcool Matrexx 30 Tempered Glass Micro-ATX', category: 'Case', price: 45.0 },
+  { name: 'ASUS Prime 750W 80+ Bronze', category: 'PSU', price: 79.0 },
+  { name: 'Microsoft Windows 11 Home OEM 64-bit', category: 'Operating System', price: 179.0 }
+];
 
 const initialData: DatabaseSchema = {
   reviews: [
@@ -289,22 +358,12 @@ const initialData: DatabaseSchema = {
       pcId: 'project-eclipse',
       pcName: 'Project Eclipse',
       pcBasePrice: 1428.0,
-      components: [
-        { name: 'AMD Ryzen 5 5600X, 6 cores / 12 threads', category: 'CPU', price: 199.0 },
-        { name: 'AMD Wraith Stealth, included with CPU', category: 'CPU Cooler', price: 0.0, included: true },
-        { name: 'ASUS Prime B550M-A WiFi II AM4 Micro-ATX', category: 'Motherboard', price: 129.0 },
-        { name: 'ASUS Dual GeForce RTX 5050 8GB OC GDDR6', category: 'GPU', price: 499.0 },
-        { name: 'G.Skill Trident Z RGB 16GB (2 × 8GB) DDR4-3600 CL16', category: 'RAM', price: 199.0 },
-        { name: 'Biwin Black Opal NV3500 512GB PCIe Gen 3 M.2', category: 'SSD', price: 99.0 },
-        { name: 'Deepcool Matrexx 30 Tempered Glass Micro-ATX', category: 'Case', price: 45.0 },
-        { name: 'ASUS Prime 750W 80+ Bronze', category: 'PSU', price: 79.0 },
-        { name: 'Microsoft Windows 11 Home OEM 64-bit', category: 'Operating System', price: 179.0 }
-      ],
+      components: sampleComponents,
       buildService: {
-        id: 'fast',
-        name: 'Fast Build',
+        id: 'minimum',
+        name: 'Option 1: Minimum Assembly',
         price: 100.0,
-        description: 'PC is assembled and receives a basic POST test only.'
+        description: 'Hardware assembly, connection checks, and basic power-on self-test (POST) only.'
       },
       subtotalBeforeDelivery: 1528.0,
       deliveryMethod: {
@@ -315,7 +374,18 @@ const initialData: DatabaseSchema = {
       },
       finalTotal: 1553.0,
       paymentMethod: 'card',
-      status: 'Parts Prepared',
+      status: 'All Parts Received',
+      stageHistory: [
+        { stage: 'Order Placed', confirmedAt: '2026-10-20T11:00:00.000Z', confirmedBy: 'Customer Checkout' },
+        { stage: 'Order Confirmed', confirmedAt: '2026-10-20T11:15:00.000Z', confirmedBy: 'Admin' },
+        { stage: 'Parts Procurement', confirmedAt: '2026-10-20T11:20:00.000Z', confirmedBy: 'Admin' },
+        { stage: 'Parts Ordered', confirmedAt: '2026-10-20T12:00:00.000Z', confirmedBy: 'Admin' },
+        { stage: 'All Parts Received', confirmedAt: '2026-10-20T14:30:00.000Z', confirmedBy: 'Admin', note: 'All parts inspected on workshop shelf.' }
+      ],
+      partsList: buildOrderPartsFromComponents('ord-sample-1', sampleComponents, 'Received'),
+      orderTests: createEmptyOrderTests(),
+      notifications: [],
+      estimatedCompletionDate: '2026-10-24',
       createdAt: '2026-10-20T11:00:00.000Z',
       updatedAt: '2026-10-20T14:30:00.000Z',
       technicianNotes: 'All components checked from inventory. Ready for bench assembly.'
@@ -327,6 +397,8 @@ const initialData: DatabaseSchema = {
     expressPrice: 49.0,
     expressTimeframe: '1–2 business days'
   },
+  assemblyPackages: DEFAULT_ASSEMBLY_PACKAGES,
+  notificationSettings: createDefaultNotificationSettings(),
   cheaperPriceRequests: [
     {
       id: 'cpr-sample-1',
@@ -356,7 +428,41 @@ const initialData: DatabaseSchema = {
   customerSuppliedMotherboards: []
 };
 
-// Ensure data folder and file exist
+function migrateOrderRecord(order: any): PcOrder {
+  const normalizedStatus = normalizeLegacyOrderStage(order.status || 'Order Placed');
+  const stageHistory: OrderStageEntry[] = Array.isArray(order.stageHistory) && order.stageHistory.length > 0
+    ? order.stageHistory
+    : [{ stage: normalizedStatus, confirmedAt: order.createdAt || new Date().toISOString(), confirmedBy: 'System' }];
+  const partsList: OrderPartItem[] = Array.isArray(order.partsList) && order.partsList.length > 0
+    ? order.partsList
+    : buildOrderPartsFromComponents(
+        order.id,
+        Array.isArray(order.components) ? order.components : [],
+        normalizedStatus === 'All Parts Received' || normalizedStatus === 'Completed' ? 'Received' : 'Not Ordered'
+      );
+  const emptyTests = createEmptyOrderTests();
+  const orderTests: OrderTestRecord = order.orderTests
+    ? {
+        ...emptyTests,
+        ...order.orderTests,
+        benchmarks: {
+          payday2Low: { ...emptyTests.benchmarks.payday2Low, ...(order.orderTests.benchmarks?.payday2Low || {}) },
+          fortniteMedium: { ...emptyTests.benchmarks.fortniteMedium, ...(order.orderTests.benchmarks?.fortniteMedium || {}) },
+          rdr2Maximum: { ...emptyTests.benchmarks.rdr2Maximum, ...(order.orderTests.benchmarks?.rdr2Maximum || {}) }
+        }
+      }
+    : emptyTests;
+
+  return {
+    ...order,
+    status: normalizedStatus,
+    stageHistory,
+    partsList,
+    orderTests,
+    notifications: Array.isArray(order.notifications) ? order.notifications : []
+  };
+}
+
 export function initDatabase(): DatabaseSchema {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -370,15 +476,18 @@ export function initDatabase(): DatabaseSchema {
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
-    // Ensure all keys exist
     const merged: DatabaseSchema = {
       reviews: parsed.reviews || initialData.reviews,
       repairRequests: parsed.repairRequests || initialData.repairRequests,
       upgradeRequests: parsed.upgradeRequests || initialData.upgradeRequests,
       customPcQuotes: parsed.customPcQuotes || [],
       contactMessages: parsed.contactMessages || [],
-      pcOrders: parsed.pcOrders || initialData.pcOrders,
+      pcOrders: (parsed.pcOrders || initialData.pcOrders).map(migrateOrderRecord),
       shippingConfig: parsed.shippingConfig || initialData.shippingConfig,
+      assemblyPackages: Array.isArray(parsed.assemblyPackages) && parsed.assemblyPackages.length > 0
+        ? parsed.assemblyPackages
+        : DEFAULT_ASSEMBLY_PACKAGES,
+      notificationSettings: parsed.notificationSettings || createDefaultNotificationSettings(),
       cheaperPriceRequests: parsed.cheaperPriceRequests || initialData.cheaperPriceRequests,
       customerSuppliedMotherboards: parsed.customerSuppliedMotherboards || []
     };

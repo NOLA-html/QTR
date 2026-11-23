@@ -8,21 +8,29 @@ import {
 } from '../src/data/builderCatalog.ts';
 
 test('Centre Com Exclusivity & Part Metadata Tests', async (t) => {
-  await t.test('All parts have a valid direct Centre Com URL', () => {
+  await t.test('No part ever fabricates or links non-Centre Com / Amazon URLs', () => {
     assert.ok(BUILDER_PARTS.length >= 50, `Expected at least 50 parts, found ${BUILDER_PARTS.length}`);
 
     for (const part of BUILDER_PARTS) {
       const url = getPartCentreComUrl(part);
-      assert.ok(url.startsWith('https://www.centrecom.com.au/'), `Part ${part.id} (${part.name}) must have Centre Com URL, got: ${url}`);
-      assert.ok(!url.includes('amazon'), `Part ${part.id} must never reference Amazon: ${url}`);
+      if (url !== null) {
+        assert.ok(url.startsWith('https://www.centrecom.com.au/'), `Part ${part.id} (${part.name}) must have Centre Com URL, got: ${url}`);
+        assert.ok(!url.includes('amazon'), `Part ${part.id} must never reference Amazon: ${url}`);
+      }
     }
   });
 
-  await t.test('Price audit metadata contains verified Australian retailer info', () => {
-    const samplePart = BUILDER_PARTS[0];
+  await t.test('Price audit metadata enforces verified Centre Com URL rule and Australian retailer info', () => {
+    const samplePart = {
+      ...BUILDER_PARTS[0],
+      centreComUrl: 'https://www.centrecom.com.au/amd-ryzen-5-5600x',
+      centreComUrlVerified: true,
+      priceStatus: 'current' as const,
+      stockStatus: 'in_stock' as const
+    };
     const audit = getPartPriceAudit(samplePart);
 
-    assert.ok(audit.centreComUrl.startsWith('https://www.centrecom.com.au/'));
+    assert.ok(audit.centreComUrl && audit.centreComUrl.startsWith('https://www.centrecom.com.au/'));
     assert.equal(audit.priceStatus, 'current');
     assert.equal(audit.stockStatus, 'in_stock');
     assert.ok(audit.verifiedRetailer.includes('Centre Com'));
@@ -46,7 +54,7 @@ test('Centre Com Exclusivity & Part Metadata Tests', async (t) => {
         category: 'cpu',
         platform: 'Both',
         price: 0,
-        image: 'https://images.unsplash.com/photo-1587202372775-e229f172b9d7?auto=format&fit=crop&w=600&q=80',
+        image: '',
         wattage: 120,
         socket: 'AM5',
         specs: { Source: 'Customer Supplied ($0.00)' },

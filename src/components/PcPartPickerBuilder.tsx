@@ -19,8 +19,10 @@ import {
 import {
   BuilderPart,
   BUILDER_CATEGORIES,
-  getPartsByCategory,
-  getPartCentreComUrl
+  BUILDER_PARTS,
+  getPartCentreComUrl,
+  isPublishedVerifiedPart,
+  isVerifiedNonPlaceholderImage
 } from '../data/builderCatalog.ts';
 import { Motherboard3DViewer } from './Motherboard3DViewer.tsx';
 import { ProductImageWithPreview } from './ProductImageWithPreview.tsx';
@@ -33,7 +35,12 @@ import { CustomerSuppliedMotherboardModal } from './CustomerSuppliedMotherboardM
 import { CustomerSuppliedDisclosureModal } from './CustomerSuppliedDisclosureModal.tsx';
 import { CheaperPriceCheckerModal } from './CheaperPriceCheckerModal.tsx';
 import { PriceChangeModal, PriceDifferenceItem } from './PriceChangeModal.tsx';
-import { formatAud, BUILD_SERVICES, CustomPcProduct } from '../utils/pricing.ts';
+import { PeripheralsWarningModal } from './PeripheralsWarningModal.tsx';
+import {
+  formatAud,
+  CustomPcProduct,
+  resolveAssemblyPackage
+} from '../utils/pricing.ts';
 import { useCart } from '../context/CartContext.tsx';
 
 interface PcPartPickerBuilderProps {
@@ -63,9 +70,9 @@ const STEP_LIST: Array<{
 export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
   onNavigateToCheckout
 }) => {
-  const { addToCart } = useCart();
+  const { addToCart, assemblyPackages, buildServiceId } = useCart();
 
-  // Active platform & step
+  // Active platform & step (starts unselected when no saved draft, matching Base44)
   const [platform, setPlatform] = useState<'AMD' | 'Intel' | null>(() => {
     try {
       const saved = localStorage.getItem(BUILDER_STORAGE_KEY);
@@ -74,7 +81,7 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
         if (parsed.platform === 'AMD' || parsed.platform === 'Intel') return parsed.platform;
       }
     } catch {}
-    return 'AMD';
+    return null;
   });
 
   const [activeCategory, setActiveCategory] = useState<BuilderPart['category']>('cpu');
@@ -103,9 +110,11 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
     return {};
   });
 
-  // Assembly & testing toggle (Base44 displays A$150.00 toggle)
-  const [includeAssembly, setIncludeAssembly] = useState(true);
-  const [selectedBuildService] = useState<'fast' | 'full'>('full');
+  const enabledPackages = useMemo(
+    () => assemblyPackages.filter((pkg) => pkg.enabled !== false),
+    [assemblyPackages]
+  );
+  const [selectedBuildService, setSelectedBuildService] = useState<string>(buildServiceId || 'medium');
 
   // Persist builder state on device as user goes
   useEffect(() => {
@@ -132,11 +141,12 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
   const [showSuppliedDisclosureModal, setShowSuppliedDisclosureModal] = useState(false);
   const [hasAgreedSuppliedDisclosure, setHasAgreedSuppliedDisclosure] = useState(false);
   const [pendingActionAfterDisclosure, setPendingActionAfterDisclosure] = useState<'cart' | 'checkout' | null>(null);
+  const [showPeripheralsModal, setShowPeripheralsModal] = useState(false);
 
   const [isPriceCheckerOpen, setIsPriceCheckerOpen] = useState(false);
   const [priceCheckerInitialPart, setPriceCheckerInitialPart] = useState<BuilderPart | null>(null);
 
-  const [firebaseCatalog, setFirebaseCatalog] = useState<Record<string, any>>({});
+  const [publishedServerProducts, setPublishedServerProducts] = useState<Record<string, any>>({});
   const [priceChangeModalOpen, setPriceChangeModalOpen] = useState(false);
   const [recheckPriceChanges, setRecheckPriceChanges] = useState<PriceDifferenceItem[]>([]);
   const [recheckOriginalTotal, setRecheckOriginalTotal] = useState(0);
@@ -149,18 +159,18 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
   const [copiedShare, setCopiedShare] = useState(false);
   const [addedNotice, setAddedNotice] = useState(false);
 
-  // Load live Firebase Centre Com pricing
+  // Load strictly published, photo-verified Centre Com products
   useEffect(() => {
     let isMounted = true;
-    fetch('/api/firebase/products')
+    fetch('/api/catalogue/published')
       .then((res) => res.json())
       .then((data) => {
         if (data.success && isMounted) {
           const map: Record<string, any> = {};
           (data.products || []).forEach((p: any) => {
-            map[p.productId] = p;
+            map[p.id] = p;
           });
-          setFirebaseCatalog(map);
+          setPublishedServerProducts(map);
         }
       })
       .catch(() => {});
@@ -169,19 +179,54 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
     };
   }, []);
 
-  const getLivePart = (part: BuilderPart): BuilderPart => {
-    const live = firebaseCatalog[part.id];
-    if (!live) return part;
-    return {
-      ...part,
-      price: live.priceAUD !== null ? live.priceAUD : part.price,
-      centreComUrl: live.productUrl || part.centreComUrl,
-      image: live.imageUrl && !live.imageUrl.includes('unsplash') ? live.imageUrl : part.image,
-      priceStatus: live.status === 'active' ? 'current' : live.status === 'stale' ? 'stale' : 'needs_check',
-      lastPriceCheck: live.lastSuccessfulCheckAt || part.lastPriceCheck,
-      stockStatus: live.status === 'unavailable' ? 'unavailable' : part.stockStatus
-    };
-  };
+  const mergedCatalogParts = useMemo(() => {
+    const byId = new Map<string, BuilderPart>();
+    for (const part of BUILDER_PARTS) {
+      const serverItem = publishedServerProducts[part.id];
+      if (serverItem) {
+        byId.set(part.id, {
+          ...part,
+          price: typeof serverItem.price === 'number' ? serverItem.price : part.price,
+          centreComUrl: serverItem.centreComUrl || part.centreComUrl,
+          centreComUrlVerified: Boolean(serverItem.centreComUrlVerified),
+          image: serverItem.image || part.image,
+          published: Boolean(serverItem.published),
+          imageReviewStatus: serverItem.imageReviewStatus,
+          imageSource: serverItem.imageSource,
+          isBoxPhoto: Boolean(serverItem.isBoxPhoto),
+          priceStatus: 'current',
+          stockStatus: 'in_stock'
+        });
+      } else {
+        byId.set(part.id, part);
+      }
+    }
+    for (const [id, srv] of Object.entries(publishedServerProducts)) {
+      if (!byId.has(id)) {
+        byId.set(id, {
+          id,
+          name: srv.name,
+          brand: srv.brand || 'Centre Com',
+          category: srv.category,
+          platform: 'Both',
+          price: Number(srv.price || 0),
+          image: srv.image || '',
+          wattage: 0,
+          centreComUrl: srv.centreComUrl,
+          centreComUrlVerified: Boolean(srv.centreComUrlVerified),
+          published: Boolean(srv.published),
+          imageReviewStatus: srv.imageReviewStatus,
+          imageSource: srv.imageSource,
+          isBoxPhoto: Boolean(srv.isBoxPhoto),
+          priceStatus: 'current',
+          stockStatus: 'in_stock',
+          specs: srv.specs || {},
+          description: `${srv.brand || ''} ${srv.name}`.trim()
+        });
+      }
+    }
+    return Array.from(byId.values());
+  }, [publishedServerProducts]);
 
   // Switch Category cleanly and reset category filters
   const handleSelectStepCategory = (cat: BuilderPart['category']) => {
@@ -325,7 +370,12 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
     }, 0);
   }, [selectedParts, customerSuppliedParts]);
 
-  const assemblyFee = includeAssembly ? 150.0 : 0;
+  const selectedAssemblyPackage = useMemo(
+    () => resolveAssemblyPackage(selectedBuildService, enabledPackages.length > 0 ? enabledPackages : assemblyPackages),
+    [selectedBuildService, enabledPackages, assemblyPackages]
+  );
+
+  const assemblyFee = selectedAssemblyPackage.price;
   const grandTotal = partsSubtotal + assemblyFee;
 
   const requiredCategories = STEP_LIST.filter((s) => !s.optional);
@@ -445,9 +495,13 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
     });
   };
 
-  // Counts & parts list for active category
+  // Strict published-only parts list for active category
   const activeParts = useMemo(() => {
-    let list = getPartsByCategory(activeCategory);
+    if (activeCategory === 'cpu' && !platform) return [];
+
+    let list = mergedCatalogParts.filter(
+      (p) => p.category === activeCategory && isPublishedVerifiedPart(p)
+    );
 
     if (activeCategory === 'cpu' && platform) {
       list = list.filter((p) => p.platform === platform || p.platform === 'Both');
@@ -492,8 +546,6 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
       list = list.filter((p) => p.brand === selectedBrand);
     }
 
-    list = list.map((p) => getLivePart(p));
-
     if (priceRange === 'under250') {
       list = list.filter((p) => p.price < 250);
     } else if (priceRange === '250to600') {
@@ -504,21 +556,14 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
 
     list = [...list].sort((a, b) => (priceSort === 'asc' ? a.price - b.price : b.price - a.price));
     return list;
-  }, [activeCategory, platform, selectedParts, searchQuery, selectedBrand, priceRange, priceSort, firebaseCatalog]);
+  }, [activeCategory, platform, selectedParts, searchQuery, selectedBrand, priceRange, priceSort, mergedCatalogParts]);
 
   const availableBrands = useMemo(() => {
-    const all = getPartsByCategory(activeCategory);
+    const all = mergedCatalogParts.filter(
+      (p) => p.category === activeCategory && isPublishedVerifiedPart(p)
+    );
     return ['All', ...Array.from(new Set(all.map((p) => p.brand))).filter(Boolean)];
-  }, [activeCategory]);
-
-  const amdCpuCount = useMemo(
-    () => getPartsByCategory('cpu').filter((p) => p.platform === 'AMD').length,
-    []
-  );
-  const intelCpuCount = useMemo(
-    () => getPartsByCategory('cpu').filter((p) => p.platform === 'Intel').length,
-    []
-  );
+  }, [activeCategory, mergedCatalogParts]);
 
   const handleSelectPart = (part: BuilderPart) => {
     if (customerSuppliedParts[part.category]) {
@@ -565,6 +610,11 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
   };
 
   const executeAddToCart = () => {
+    const verifiedCaseImg =
+      selectedParts.case?.image && isVerifiedNonPlaceholderImage(selectedParts.case.image)
+        ? selectedParts.case.image
+        : '';
+
     const customPc: CustomPcProduct = {
       id: 'custom-pc-build',
       name: `Custom ${platform || 'AMD'} Gaming PC`,
@@ -573,9 +623,7 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
       }`,
       tier: 'Custom Build',
       basePrice: partsSubtotal,
-      image:
-        selectedParts.case?.image ||
-        'https://media.base44.com/images/public/6ad82e9d98c7f6fdc12bb981/47c7ca544_generated_image.png',
+      image: verifiedCaseImg,
       accentColor: 'blue',
       badge: `${platform || 'AMD'} CUSTOM BUILD`,
       description: `Custom PC configured part by part on ${platform || 'AMD'} with verified compatibility checks.`,
@@ -585,6 +633,8 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
         .map(([cat, part]) => ({
           name: part!.name,
           category: cat.toUpperCase(),
+          partId: part!.id,
+          isCustomerSupplied: Boolean(customerSuppliedParts[cat as BuilderPart['category']]),
           price: customerSuppliedParts[cat as BuilderPart['category']] ? 0 : part!.price
         })),
       specsSummary: {
@@ -608,7 +658,7 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
       localStorage.setItem('qtr_custom_pc_build', JSON.stringify(customPc));
     } catch {}
 
-    addToCart('custom-pc-build', selectedBuildService, false);
+    addToCart('custom-pc-build', selectedAssemblyPackage.id, false);
     setAddedNotice(true);
     setTimeout(() => setAddedNotice(false), 3000);
     if (onNavigateToCheckout) {
@@ -645,13 +695,18 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
     executeAddToCart();
   };
 
-  const handleAddBuildToCart = () => {
+  const proceedAfterPeripheralsWarning = () => {
+    setShowPeripheralsModal(false);
     if (suppliedPartsList.length > 0 && !hasAgreedSuppliedDisclosure) {
       setPendingActionAfterDisclosure('checkout');
       setShowSuppliedDisclosureModal(true);
       return;
     }
     checkPricesBeforeAction('checkout');
+  };
+
+  const handleAddBuildToCart = () => {
+    setShowPeripheralsModal(true);
   };
 
   const handleConfirmPriceChange = () => {
@@ -791,70 +846,67 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
 
           {/* CENTER: Platform Card + Part Picker List */}
           <div className="min-w-0 flex-1">
-            {/* Step 1 Platform Selector */}
+            {/* Step 1 Platform Selector (exact Base44 card structure) */}
             <div className="mb-6">
-              <div className="rounded-md border border-slate-200 bg-white p-4">
+              <div className="rounded-md border border-slate-200 bg-white p-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <div>
                     <h2 className="font-heading text-[15px] font-bold text-navy">Choose your platform</h2>
                     <p className="mt-0.5 text-[12px] text-slate-600">
-                      AMD and Intel processors use different sockets. Pick one first — only processors and
+                      Each platform uses different sockets. Pick one first — only processors and
                       motherboards that physically fit will be shown.
                     </p>
                   </div>
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                    Step 1
-                  </span>
                 </div>
 
-                <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+                <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  Step 1
+                </div>
+
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
                     aria-pressed={platform === 'AMD'}
+                    aria-label="Choose AMD platform (AM4 and AM5)"
                     onClick={() => handlePlatformClick('AMD')}
-                    className={`relative flex flex-col rounded-md border px-4 py-3.5 text-left transition bg-navy-900 ${
+                    className={`relative flex h-[136px] flex-col items-center justify-center rounded-md bg-[#EE353A] px-4 py-4 text-center transition ${
                       platform === 'AMD'
-                        ? 'border-gold shadow-[0_0_0_1px_rgba(200,162,74,0.55)]'
-                        : 'border-navy-800 hover:border-gold/70'
+                        ? 'ring-2 ring-navy ring-offset-2 shadow-md'
+                        : 'hover:brightness-95'
                     }`}
                   >
-                    <span className="absolute inset-y-0 left-0 w-[3px] rounded-l bg-gold" aria-hidden="true" />
-                    <span className="flex items-center gap-2">
-                      <Cpu className="w-3.5 h-3.5 shrink-0 text-gold" />
-                      <span className="font-heading text-[14px] font-bold text-white">AMD Ryzen</span>
-                      {platform === 'AMD' && <Check className="ml-auto w-[13px] h-[13px] shrink-0 text-gold" strokeWidth={3} />}
-                    </span>
-                    <span className="mt-1.5 font-mono text-[11px] tracking-wide text-gold-300">AM4 &middot; AM5</span>
-                    <span className="mt-1 text-[11.5px] leading-relaxed text-slate-300">
-                      Ryzen 5000 on AM4; Ryzen 7000 and 9000 on AM5.
-                    </span>
-                    <span className="mt-2 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-slate-400">
-                      {amdCpuCount} processors available
+                    <div className="flex h-12 items-center justify-center overflow-hidden">
+                      <img
+                        src="/images/brands/amd-white.png"
+                        alt="AMD"
+                        className="h-24 w-24 shrink-0 object-contain select-none"
+                      />
+                    </div>
+                    <span className="mt-2.5 font-mono text-[12px] tracking-wide text-white/95">
+                      AM4 and AM5
                     </span>
                   </button>
 
                   <button
                     type="button"
                     aria-pressed={platform === 'Intel'}
+                    aria-label="Choose Intel platform (LGA1700 and LGA1851)"
                     onClick={() => handlePlatformClick('Intel')}
-                    className={`relative flex flex-col rounded-md border px-4 py-3.5 text-left transition bg-navy-900 ${
+                    className={`relative flex h-[136px] flex-col items-center justify-center rounded-md bg-[#1574C4] px-4 py-4 text-center transition ${
                       platform === 'Intel'
-                        ? 'border-gold shadow-[0_0_0_1px_rgba(200,162,74,0.55)]'
-                        : 'border-navy-800 hover:border-gold/70'
+                        ? 'ring-2 ring-navy ring-offset-2 shadow-md'
+                        : 'hover:brightness-95'
                     }`}
                   >
-                    <span className="absolute inset-y-0 left-0 w-[3px] rounded-l bg-gold" aria-hidden="true" />
-                    <span className="flex items-center gap-2">
-                      <Cpu className="w-3.5 h-3.5 shrink-0 text-gold" />
-                      <span className="font-heading text-[14px] font-bold text-white">Intel Core</span>
-                      {platform === 'Intel' && <Check className="ml-auto w-[13px] h-[13px] shrink-0 text-gold" strokeWidth={3} />}
-                    </span>
-                    <span className="mt-1.5 font-mono text-[11px] tracking-wide text-gold-300">LGA1700 &middot; LGA1851</span>
-                    <span className="mt-1 text-[11.5px] leading-relaxed text-slate-300">
-                      12th–14th Gen on LGA1700; Core Ultra on LGA1851.
-                    </span>
-                    <span className="mt-2 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-slate-400">
-                      {intelCpuCount} processors available
+                    <div className="flex h-12 items-center justify-center">
+                      <img
+                        src="/images/brands/intel-white.png"
+                        alt="Intel"
+                        className="h-12 w-auto object-contain select-none"
+                      />
+                    </div>
+                    <span className="mt-2.5 font-mono text-[12px] tracking-wide text-white/95">
+                      LGA1700 and LGA1851
                     </span>
                   </button>
                 </div>
@@ -881,6 +933,13 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
             )}
 
             {/* Category Header, Customer-Supplied Action, Search & Filter Controls */}
+            {platform === null && activeCategory === 'cpu' ? (
+              <div className="rounded-md border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+                <p className="text-[13px] text-slate-600">
+                  Choose AMD or Intel above to see the processors that fit that socket.
+                </p>
+              </div>
+            ) : (
             <div className="min-w-0 flex-1">
               <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -888,7 +947,7 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
                     Choose your {activeCategoryHeading.toLowerCase()}
                   </h2>
                   <p className="mt-0.5 text-[12px] text-slate-500">
-                    {activeParts.length} option{activeParts.length === 1 ? '' : 's'} available
+                    {activeParts.length} verified option{activeParts.length === 1 ? '' : 's'} available
                   </p>
                 </div>
 
@@ -971,16 +1030,38 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
               <div className="mt-4 space-y-3">
                 {activeParts.length === 0 ? (
                   <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-                    <p className="font-heading text-[14.5px] font-bold text-navy">No matching parts found</p>
-                    <p className="mt-1 text-[12.5px] text-slate-600">
-                      Try clearing the search query or filter criteria.
+                    <p className="font-heading text-[14.5px] font-bold text-navy">
+                      No published verified parts in this category yet
                     </p>
+                    <p className="mx-auto mt-1 max-w-md text-[12.5px] text-slate-600">
+                      Only Centre Com components with verified direct product URLs and genuine unpackaged product
+                      photographs are shown here. You can also supply your own part for this step at A$0.00.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeCategory === 'motherboard') {
+                          setIsMotherboardSuppliedModalOpen(true);
+                        } else {
+                          setModalCustomerSupplyingCategory({
+                            category: activeCategory,
+                            label: activeCategoryHeading
+                          });
+                        }
+                      }}
+                      className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-md bg-navy px-4 text-[12px] font-semibold text-white hover:bg-navy-800"
+                    >
+                      <PackageCheck className="w-3.5 h-3.5" />
+                      {activeCategory === 'motherboard'
+                        ? "Supply your own motherboard ($0)"
+                        : `Supply your own ${activeCategoryHeading.toLowerCase()} ($0)`}
+                    </button>
                   </div>
                 ) : (
                   activeParts.map((part) => {
                     const isPicked = selectedParts[part.category]?.id === part.id;
                     const isSupplied = isPicked && Boolean(customerSuppliedParts[part.category]);
-                    const isVerified = part.priceStatus === 'current' || Boolean(part.centreComUrl);
+                    const isVerified = Boolean(part.centreComUrlVerified) && part.priceStatus === 'current';
                     const centreUrl = getPartCentreComUrl(part);
                     const isComparing = compareParts.some((c) => c.id === part.id);
 
@@ -1109,6 +1190,7 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
                 )}
               </div>
             </div>
+            )}
           </div>
         </div>
 
@@ -1156,27 +1238,28 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
                 </div>
               )}
 
-              <div className="flex items-center justify-between gap-3 px-5 py-4">
-                <div>
-                  <p className="text-[13px] font-semibold text-navy">Assembly &amp; testing</p>
-                  <p className="text-[11.5px] text-slate-500">A$150.00 — charged once per build</p>
+              <div className="px-5 py-4 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor="builder-assembly-tier" className="text-[13px] font-semibold text-navy">
+                    Assembly &amp; testing
+                  </label>
+                  <span className="text-[12px] font-bold text-navy">{formatAud(assemblyFee)}</span>
                 </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={includeAssembly}
-                  aria-label="Toggle assembly and testing"
-                  onClick={() => setIncludeAssembly((v) => !v)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors ${
-                    includeAssembly ? 'bg-navy' : 'bg-slate-300'
-                  }`}
+                <select
+                  id="builder-assembly-tier"
+                  value={selectedAssemblyPackage.id}
+                  onChange={(e) => setSelectedBuildService(e.target.value)}
+                  className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-[12px] font-medium text-navy focus:border-brand-blue focus:outline-none"
                 >
-                  <span
-                    className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                      includeAssembly ? 'translate-x-5' : 'translate-x-0.5'
-                    }`}
-                  />
-                </button>
+                  {(enabledPackages.length > 0 ? enabledPackages : assemblyPackages).map((pkg) => (
+                    <option key={pkg.id} value={pkg.id}>
+                      {pkg.name} ({formatAud(pkg.price)})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] leading-snug text-slate-500">
+                  {selectedAssemblyPackage.shortSummary}
+                </p>
               </div>
 
               <div className="space-y-2.5 px-5 py-4">
@@ -1185,7 +1268,7 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
                   <span className="font-semibold text-navy">{formatAud(partsSubtotal)}</span>
                 </div>
                 <div className="flex justify-between text-[13px] text-slate-600">
-                  <span>Assembly &amp; testing</span>
+                  <span>{selectedAssemblyPackage.shortLabel}</span>
                   <span className="font-semibold text-navy">{formatAud(assemblyFee)}</span>
                 </div>
                 <div className="flex items-baseline justify-between border-t border-slate-100 pt-3">
@@ -1417,6 +1500,12 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
         priceChanges={recheckPriceChanges}
         originalTotal={recheckOriginalTotal}
         revisedTotal={recheckRevisedTotal}
+      />
+
+      <PeripheralsWarningModal
+        isOpen={showPeripheralsModal}
+        onAcknowledge={proceedAfterPeripheralsWarning}
+        onCancel={() => setShowPeripheralsModal(false)}
       />
     </div>
   );

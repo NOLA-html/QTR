@@ -13,6 +13,7 @@ import {
 interface PeripheralsWarningModalProps {
   isOpen: boolean;
   onAcknowledge: () => void;
+  onCancel?: () => void;
 }
 
 const STORAGE_KEY = 'qtr_peripherals_ack_v1';
@@ -33,15 +34,16 @@ export function setPeripheralsAcknowledged(): void {
 
 export const PeripheralsWarningModal: React.FC<PeripheralsWarningModalProps> = ({
   isOpen,
-  onAcknowledge
+  onAcknowledge,
+  onCancel
 }) => {
-  const [secondsRemaining, setSecondsRemaining] = useState(2);
+  const [secondsRemaining, setSecondsRemaining] = useState(3);
   const [canDismiss, setCanDismiss] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    setSecondsRemaining(2);
+    setSecondsRemaining(3);
     setCanDismiss(false);
 
     const interval = setInterval(() => {
@@ -65,11 +67,14 @@ export const PeripheralsWarningModal: React.FC<PeripheralsWarningModalProps> = (
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
+        if (onCancel && canDismiss) {
+          onCancel();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen]);
+  }, [isOpen, onCancel, canDismiss]);
 
   if (!isOpen) return null;
 
@@ -95,12 +100,12 @@ export const PeripheralsWarningModal: React.FC<PeripheralsWarningModalProps> = (
         <div className="flex items-start gap-3 border-b border-orange-200 bg-orange-50 px-4 py-4 sm:px-7 sm:py-5">
           <AlertTriangle className="mt-0.5 h-[26px] w-[26px] shrink-0 text-orange-600" />
           <div>
-            <p className="qtr-label text-orange-700">Please read before ordering</p>
+            <p className="qtr-label text-orange-700">Before adding your PC to cart!</p>
             <h2
               id="peripherals-warning-title"
               className="mt-1 font-heading text-[18px] font-extrabold uppercase leading-tight text-orange-900 sm:text-[23px]"
             >
-              Warning: peripherals are not included
+              Have you remembered your peripherals?
             </h2>
           </div>
         </div>
@@ -108,7 +113,7 @@ export const PeripheralsWarningModal: React.FC<PeripheralsWarningModalProps> = (
         {/* Body */}
         <div className="px-4 py-5 sm:px-7 sm:py-6">
           <p className="text-[14px] leading-relaxed text-slate-700">
-            Your PC purchase includes the computer only. It does <strong>not</strong> include:
+            Your custom-built PC includes the computer only. <strong>Peripherals are NOT included</strong>:
           </p>
 
           <ul className="mt-4 grid gap-2.5 sm:grid-cols-2">
@@ -135,8 +140,8 @@ export const PeripheralsWarningModal: React.FC<PeripheralsWarningModalProps> = (
           </ul>
 
           <p className="mt-4 text-[13.5px] leading-relaxed text-slate-700">
-            These items must be purchased separately. Make sure you have the peripherals you need
-            before ordering.
+            These items must be added or purchased separately. Confirm below if you already have them
+            or have budgeted for them, or return to keep your build selections intact.
           </p>
         </div>
 
@@ -148,30 +153,42 @@ export const PeripheralsWarningModal: React.FC<PeripheralsWarningModalProps> = (
                 <>
                   <Lock className="h-[13px] w-[13px] shrink-0 text-slate-400" />
                   <span>
-                    You can close this warning in {secondsRemaining} second
-                    {secondsRemaining === 1 ? '' : 's'}.
+                    Please wait {secondsRemaining} second
+                    {secondsRemaining === 1 ? '' : 's'} to confirm.
                   </span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-                  <span className="text-emerald-700">Acknowledgement ready.</span>
+                  <span className="text-emerald-700">Ready to confirm.</span>
                 </>
               )}
             </p>
 
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={!canDismiss}
-              className={`inline-flex h-12 items-center justify-center rounded-md px-6 font-heading text-[13px] font-bold uppercase tracking-wide transition sm:text-[13.5px] ${
-                canDismiss
-                  ? 'cursor-pointer bg-orange-600 text-white hover:bg-orange-700'
-                  : 'cursor-not-allowed bg-slate-300 text-slate-500'
-              }`}
-            >
-              {canDismiss ? 'I understand — continue' : `Please wait ${secondsRemaining}s`}
-            </button>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 font-heading text-[12px] font-bold uppercase tracking-wide text-slate-700 transition hover:bg-slate-100"
+                >
+                  NO, I DIDN&apos;T FACTOR IT IN
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleConfirm}
+                disabled={!canDismiss}
+                className={`inline-flex h-11 items-center justify-center rounded-md px-5 font-heading text-[12.5px] font-bold uppercase tracking-wide transition ${
+                  canDismiss
+                    ? 'cursor-pointer bg-orange-600 text-white hover:bg-orange-700'
+                    : 'cursor-not-allowed bg-slate-300 text-slate-500'
+                }`}
+              >
+                {canDismiss ? 'YES, I UNDERSTAND' : `YES, I UNDERSTAND (${secondsRemaining}s)`}
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -2,10 +2,10 @@
   "entities": {
     "Product": {
       "title": "Product",
-      "description": "Centre Com PC component record with live AUD pricing, stock, verification timestamp, and specifications.",
+      "description": "Centre Com PC component record with live AUD pricing, verified product URL, non-box photo moderation status, and specifications.",
       "type": "object",
       "properties": {
-        "productId": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "manufacturer": { "type": "string", "maxLength": 100 },
         "model": { "type": "string", "maxLength": 200 },
         "category": { "type": "string", "maxLength": 50 },
@@ -14,7 +14,19 @@
         "priceAUD": { "type": "number" },
         "currency": { "type": "string", "enum": ["AUD"] },
         "imageUrl": { "type": "string", "maxLength": 500 },
+        "published": { "type": "boolean" },
+        "imageReviewStatus": {
+          "type": "string",
+          "enum": ["verified", "awaiting_verified_photo", "rejected_box_photo", "flagged"]
+        },
+        "imageSource": { "type": "string", "enum": ["centrecom", "unverified"] },
+        "isBoxPhoto": { "type": "boolean" },
+        "centreComUrlVerified": { "type": "boolean" },
         "specifications": { "type": "object" },
+        "stockStatus": {
+          "type": "string",
+          "enum": ["in_stock", "low_stock", "out_of_stock", "check_store"]
+        },
         "status": {
           "type": "string",
           "enum": ["active", "stale", "unavailable", "price_check_failed", "needs_review"]
@@ -29,15 +41,28 @@
         "updatedAt": { "type": "string" },
         "lastErrorCode": { "type": "string", "maxLength": 100 }
       },
-      "required": ["productId", "manufacturer", "model", "category", "retailer", "productUrl", "currency", "status", "priceSource"]
+      "required": [
+        "productId",
+        "manufacturer",
+        "model",
+        "category",
+        "retailer",
+        "currency",
+        "status",
+        "priceSource",
+        "published",
+        "imageReviewStatus",
+        "isBoxPhoto",
+        "centreComUrlVerified"
+      ]
     },
     "PriceHistory": {
       "title": "PriceHistory",
       "description": "Historical audit log of verified Centre Com price changes and manual verifications.",
       "type": "object",
       "properties": {
-        "id": { "type": "string", "maxLength": 128 },
-        "productId": { "type": "string", "maxLength": 128 },
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "productId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "priceAUD": { "type": "number" },
         "currency": { "type": "string", "enum": ["AUD"] },
         "productUrl": { "type": "string", "maxLength": 500 },
@@ -54,12 +79,159 @@
       },
       "required": ["id", "productId", "priceAUD", "currency", "productUrl", "checkedAt", "changeType", "verificationMethod"]
     },
+    "AssemblyPackage": {
+      "title": "AssemblyPackage",
+      "description": "Configurable PC assembly and testing package option (Option 1 Minimum, Option 2 Medium, Option 3 Full).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "optionNumber": { "type": "number" },
+        "name": { "type": "string", "maxLength": 120 },
+        "shortLabel": { "type": "string", "maxLength": 80 },
+        "price": { "type": "number" },
+        "enabled": { "type": "boolean" },
+        "description": { "type": "string", "maxLength": 500 },
+        "shortSummary": { "type": "string", "maxLength": 200 },
+        "includes": { "type": "array" },
+        "doesNotInclude": { "type": "array" },
+        "footnote": { "type": "string", "maxLength": 300 }
+      },
+      "required": ["id", "optionNumber", "name", "price", "enabled", "description"]
+    },
+    "PcOrder": {
+      "title": "PcOrder",
+      "description": "Customer custom PC or prebuilt order with assembly tier, delivery method, and 13-stage progression.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "referenceNumber": { "type": "string", "maxLength": 40 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "pcId": { "type": "string", "maxLength": 128 },
+        "pcName": { "type": "string", "maxLength": 200 },
+        "pcBasePrice": { "type": "number" },
+        "subtotalBeforeDelivery": { "type": "number" },
+        "finalTotal": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["card", "bank_transfer", "pickup_cash"] },
+        "paymentStatus": { "type": "string", "enum": ["Pending", "Paid", "Part Paid", "Refunded"] },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Order received",
+            "Order confirmed",
+            "Parts being sourced",
+            "Waiting for parts",
+            "All parts received",
+            "Assembly started",
+            "PC assembly completed",
+            "Post-build testing",
+            "Stress testing",
+            "Gaming FPS testing",
+            "Final quality check",
+            "Ready for collection or dispatch",
+            "Completed or collected",
+            "Cancelled"
+          ]
+        },
+        "estimatedCompletionDate": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "referenceNumber", "customerName", "email", "pcId", "pcName", "finalTotal", "status"]
+    },
+    "OrderPart": {
+      "title": "OrderPart",
+      "description": "Individual component procurement and warehouse tracking record belonging to a PC order.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orderId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 250 },
+        "category": { "type": "string", "maxLength": 60 },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Not Ordered",
+            "Ready to Order",
+            "Ordered",
+            "In Transit",
+            "Partially Received",
+            "Received",
+            "Missing",
+            "Damaged",
+            "Cancelled",
+            "Customer Supplied"
+          ]
+        },
+        "supplier": { "type": "string", "maxLength": 120 },
+        "supplierOrderNumber": { "type": "string", "maxLength": 120 },
+        "purchasePriceAUD": { "type": "number" },
+        "qtyRequired": { "type": "number" },
+        "qtyReceived": { "type": "number" },
+        "carrier": { "type": "string", "maxLength": 80 },
+        "trackingNumber": { "type": "string", "maxLength": 120 },
+        "trackingUrl": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "orderId", "name", "category", "status", "qtyRequired", "qtyReceived"]
+    },
+    "OrderTest": {
+      "title": "OrderTest",
+      "description": "9-point workshop testing verification and optional FPS benchmark log for a PC order.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orderId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "powerOnPost": { "type": "boolean" },
+        "componentsRecognised": { "type": "boolean" },
+        "tempsChecked": { "type": "boolean" },
+        "stressTestPassed": { "type": "boolean" },
+        "stabilityVerified": { "type": "boolean" },
+        "payday2Tested": { "type": "boolean" },
+        "fortniteTested": { "type": "boolean" },
+        "rdr2Tested": { "type": "boolean" },
+        "finalQualityCheck": { "type": "boolean" },
+        "technicianName": { "type": "string", "maxLength": 100 },
+        "testedAt": { "type": "string" },
+        "notes": { "type": "string", "maxLength": 1000 }
+      },
+      "required": ["id", "orderId", "powerOnPost", "finalQualityCheck"]
+    },
+    "CustomerNotification": {
+      "title": "CustomerNotification",
+      "description": "Milestone customer notification audit log for order tracking transparency.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orderId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventKey": {
+          "type": "string",
+          "enum": [
+            "order_confirmed",
+            "parts_ordered",
+            "parts_received",
+            "assembly_started",
+            "testing_completed",
+            "ready_for_collection",
+            "dispatched"
+          ]
+        },
+        "title": { "type": "string", "maxLength": 120 },
+        "recipientEmail": { "type": "string", "maxLength": 150 },
+        "subject": { "type": "string", "maxLength": 200 },
+        "body": { "type": "string", "maxLength": 2000 },
+        "sentAt": { "type": "string" },
+        "sentBy": { "type": "string", "maxLength": 100 },
+        "deliveryStatus": { "type": "string", "enum": ["sent", "logged"] }
+      },
+      "required": ["id", "orderId", "eventKey", "recipientEmail", "subject", "sentAt", "deliveryStatus"]
+    },
     "CheaperPriceRequest": {
       "title": "CheaperPriceRequest",
       "description": "Price match review submission from customer with competitor URL and AI verification evaluation.",
       "type": "object",
       "properties": {
-        "id": { "type": "string", "maxLength": 128 },
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "referenceNumber": { "type": "string", "maxLength": 30 },
         "customerName": { "type": "string", "maxLength": 100 },
         "email": { "type": "string", "maxLength": 150 },
@@ -95,7 +267,7 @@
       "description": "Authorized administrator user profile for QTR staff operations.",
       "type": "object",
       "properties": {
-        "uid": { "type": "string", "maxLength": 128 },
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "email": { "type": "string", "maxLength": 150 },
         "role": { "type": "string", "enum": ["admin", "superadmin"] },
         "createdAt": { "type": "string" }
@@ -106,11 +278,31 @@
   "firestore": {
     "/products/{productId}": {
       "schema": { "$ref": "#/entities/Product" },
-      "description": "Catalogue of PC components with verified Centre Com pricing, specifications, and availability."
+      "description": "Catalogue of PC components with verified Centre Com pricing, moderation status, specifications, and availability."
     },
     "/priceHistory/{historyId}": {
       "schema": { "$ref": "#/entities/PriceHistory" },
       "description": "Audit trail of verified Centre Com price changes."
+    },
+    "/assemblyPackages/{packageId}": {
+      "schema": { "$ref": "#/entities/AssemblyPackage" },
+      "description": "Configurable 3-tier assembly & testing service packages."
+    },
+    "/pcOrders/{orderId}": {
+      "schema": { "$ref": "#/entities/PcOrder" },
+      "description": "Customer custom PC & prebuilt orders (PII isolated to admin)."
+    },
+    "/pcOrders/{orderId}/parts/{partId}": {
+      "schema": { "$ref": "#/entities/OrderPart" },
+      "description": "Per-order component procurement and delivery status tracking."
+    },
+    "/pcOrders/{orderId}/tests/{testId}": {
+      "schema": { "$ref": "#/entities/OrderTest" },
+      "description": "Per-order 9-step testing checklist and game benchmark results."
+    },
+    "/pcOrders/{orderId}/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/CustomerNotification" },
+      "description": "Milestone customer notification audit log."
     },
     "/cheaperPriceRequests/{requestId}": {
       "schema": { "$ref": "#/entities/CheaperPriceRequest" },

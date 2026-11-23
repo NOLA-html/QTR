@@ -3,14 +3,17 @@ import {
   CustomPcProduct,
   getCustomPcById,
   DEFAULT_SHIPPING_CONFIG,
+  DEFAULT_ASSEMBLY_PACKAGES,
   ShippingConfig,
-  calculatePcOrderPricing
+  AssemblyPackage,
+  calculatePcOrderPricing,
+  normalizeAssemblyPackageId
 } from '../utils/pricing.ts';
 import { BuilderPart } from '../data/builderCatalog.ts';
 
 export interface CartItem {
   pc: CustomPcProduct;
-  buildServiceId: 'fast' | 'full';
+  buildServiceId: string;
   quantity: number;
 }
 
@@ -23,23 +26,25 @@ interface CartContextType {
   cartItem: CartItem | null;
   componentItems: ComponentCartItem[];
   totalItemCount: number;
-  buildServiceId: 'fast' | 'full';
+  buildServiceId: string;
   deliveryMethodId: 'pickup' | 'normal' | 'express';
   shippingConfig: ShippingConfig;
+  assemblyPackages: AssemblyPackage[];
   isCartOpen: boolean;
   openCart: () => void;
   closeCart: () => void;
-  addToCart: (pcId: string, buildServiceId?: 'fast' | 'full', openDrawer?: boolean) => void;
+  addToCart: (pcId: string, buildServiceId?: string, openDrawer?: boolean) => void;
   updatePcQuantity: (quantity: number) => void;
   removeFromCart: () => void;
   addComponentToCart: (part: BuilderPart, quantity?: number) => void;
   updateComponentQty: (partId: string, quantity: number) => void;
   removeComponentFromCart: (partId: string) => void;
   clearCart: () => void;
-  updateBuildService: (buildServiceId: 'fast' | 'full') => void;
+  updateBuildService: (buildServiceId: string) => void;
   updateDeliveryMethod: (deliveryMethodId: 'pickup' | 'normal' | 'express') => void;
   pricing: ReturnType<typeof calculatePcOrderPricing> | null;
   refreshShippingConfig: () => Promise<void>;
+  refreshAssemblyPackages: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -77,12 +82,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
-  const [buildServiceId, setBuildServiceId] = useState<'fast' | 'full'>(() => {
+  const [buildServiceId, setBuildServiceId] = useState<string>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_BUILD);
-      return stored === 'full' ? 'full' : 'fast';
+      return normalizeAssemblyPackageId(stored);
     } catch {
-      return 'fast';
+      return 'minimum';
     }
   });
 
@@ -97,6 +102,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [shippingConfig, setShippingConfig] = useState<ShippingConfig>(DEFAULT_SHIPPING_CONFIG);
+  const [assemblyPackages, setAssemblyPackages] = useState<AssemblyPackage[]>(DEFAULT_ASSEMBLY_PACKAGES);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   const refreshShippingConfig = async () => {
@@ -113,8 +119,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const refreshAssemblyPackages = async () => {
+    try {
+      const res = await fetch('/api/config/assembly-packages');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.packages) && data.packages.length > 0) {
+          setAssemblyPackages(data.packages);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load assembly packages from server, using defaults', err);
+    }
+  };
+
   useEffect(() => {
     refreshShippingConfig();
+    refreshAssemblyPackages();
   }, []);
 
   const persistComponents = (items: ComponentCartItem[]) => {
@@ -124,14 +145,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
   };
 
-  const addToCart = (newPcId: string, preferredBuildService: 'fast' | 'full' = 'fast', openDrawer = false) => {
+  const addToCart = (newPcId: string, preferredBuildService: string = 'minimum', openDrawer = false) => {
+    const normalizedService = normalizeAssemblyPackageId(preferredBuildService);
     setPcId(newPcId);
     setPcQuantity(1);
-    setBuildServiceId(preferredBuildService);
+    setBuildServiceId(normalizedService);
     try {
       localStorage.setItem(STORAGE_KEY_PC, newPcId);
       localStorage.setItem(STORAGE_KEY_PC_QTY, '1');
-      localStorage.setItem(STORAGE_KEY_BUILD, preferredBuildService);
+      localStorage.setItem(STORAGE_KEY_BUILD, normalizedService);
     } catch {}
     if (openDrawer) setIsCartOpen(true);
   };
@@ -185,10 +207,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     persistComponents([]);
   };
 
-  const updateBuildService = (newServiceId: 'fast' | 'full') => {
-    setBuildServiceId(newServiceId);
+  const updateBuildService = (newServiceId: string) => {
+    const normalized = normalizeAssemblyPackageId(newServiceId);
+    setBuildServiceId(normalized);
     try {
-      localStorage.setItem(STORAGE_KEY_BUILD, newServiceId);
+      localStorage.setItem(STORAGE_KEY_BUILD, normalized);
     } catch {}
   };
 
@@ -210,7 +233,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     : null;
 
   const pricing = selectedPc
-    ? calculatePcOrderPricing(selectedPc, buildServiceId, deliveryMethodId, shippingConfig)
+    ? calculatePcOrderPricing(selectedPc, buildServiceId, deliveryMethodId, shippingConfig, assemblyPackages)
     : null;
 
   const totalItemCount =
@@ -225,6 +248,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         buildServiceId,
         deliveryMethodId,
         shippingConfig,
+        assemblyPackages,
         isCartOpen,
         openCart: () => setIsCartOpen(true),
         closeCart: () => setIsCartOpen(false),
@@ -238,7 +262,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateBuildService,
         updateDeliveryMethod,
         pricing,
-        refreshShippingConfig
+        refreshShippingConfig,
+        refreshAssemblyPackages
       }}
     >
       {children}

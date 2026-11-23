@@ -310,7 +310,7 @@ Return a clean JSON object with this exact schema:
 If the model cannot be identified with certainty, set "identified": false and explain in "notes". Do NOT invent or guess technical specifications.`;
 
       const response = await aiClient.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-4-hydrogen',
         contents: prompt,
         config: {
           responseMimeType: 'application/json'

@@ -24,10 +24,10 @@ test('PC 1: Project Eclipse specifications and exact base parts + Windows price 
   assert.equal(osComp.price, 179.0, 'Windows 11 Home OEM license must be $179.00');
 });
 
-test('PC 2: NITROFORGE X3060 specifications and exact base parts + Windows price sum', () => {
+test('PC 2: NitroForge X3060 specifications and exact base parts + Windows price sum', () => {
   const nitro = getCustomPcById('nitroforge-x3060');
-  assert.ok(nitro, 'NITROFORGE X3060 must exist in catalogue');
-  assert.equal(nitro.name, 'NITROFORGE X3060');
+  assert.ok(nitro, 'NitroForge X3060 must exist in catalogue');
+  assert.equal(nitro.name, 'NitroForge X3060');
   assert.equal(nitro.basePrice, 2015.0);
 
   // Sum all individual component prices
@@ -41,10 +41,10 @@ test('PC 2: NITROFORGE X3060 specifications and exact base parts + Windows price
   assert.match(psuComp.name, /Antec GSK850 V2/);
 });
 
-test('PC 3: OVERDRIVE specifications and exact base parts + Windows price sum', () => {
+test('PC 3: Overdrive specifications and exact base parts + Windows price sum', () => {
   const overdrive = getCustomPcById('overdrive');
-  assert.ok(overdrive, 'OVERDRIVE must exist in catalogue');
-  assert.equal(overdrive.name, 'OVERDRIVE');
+  assert.ok(overdrive, 'Overdrive must exist in catalogue');
+  assert.equal(overdrive.name, 'Overdrive');
   assert.equal(overdrive.basePrice, 3743.0);
 
   // Sum all individual component prices

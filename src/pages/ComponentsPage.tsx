@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ChevronRight,
   Search,
@@ -14,7 +14,9 @@ import {
   BUILDER_PARTS,
   BUILDER_CATEGORIES,
   BuilderPart,
-  getPartCentreComUrl
+  getPartCentreComUrl,
+  isPublishedVerifiedPart,
+  isVerifiedNonPlaceholderImage
 } from '../data/builderCatalog.ts';
 import { formatAud } from '../utils/pricing.ts';
 import { useCart } from '../context/CartContext.tsx';
@@ -38,21 +40,94 @@ export const ComponentsPage: React.FC<ComponentsPageProps> = ({
   const [detailQty, setDetailQty] = useState(1);
   const [addedFeedback, setAddedFeedback] = useState(false);
   const [priceCheckerPart, setPriceCheckerPart] = useState<BuilderPart | null>(null);
+  const [publishedServerProducts, setPublishedServerProducts] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/catalogue/published')
+      .then((r) => r.json())
+      .then((data) => {
+        if (active && data.success) {
+          const map: Record<string, any> = {};
+          (data.products || []).forEach((p: any) => {
+            map[p.id] = p;
+          });
+          setPublishedServerProducts(map);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const publishedParts = useMemo(() => {
+    const byId = new Map<string, BuilderPart>();
+    for (const part of BUILDER_PARTS) {
+      const srv = publishedServerProducts[part.id];
+      const merged: BuilderPart = srv
+        ? {
+            ...part,
+            price: typeof srv.price === 'number' ? srv.price : part.price,
+            centreComUrl: srv.centreComUrl || part.centreComUrl,
+            centreComUrlVerified: Boolean(srv.centreComUrlVerified),
+            image: srv.image || part.image,
+            published: Boolean(srv.published),
+            imageReviewStatus: srv.imageReviewStatus,
+            imageSource: srv.imageSource,
+            isBoxPhoto: Boolean(srv.isBoxPhoto),
+            priceStatus: 'current',
+            stockStatus: 'in_stock'
+          }
+        : part;
+      if (isPublishedVerifiedPart(merged)) {
+        byId.set(merged.id, merged);
+      }
+    }
+    for (const [id, srv] of Object.entries(publishedServerProducts)) {
+      if (!byId.has(id)) {
+        const candidate: BuilderPart = {
+          id,
+          name: srv.name,
+          brand: srv.brand || 'Centre Com',
+          category: srv.category,
+          platform: 'Both',
+          price: Number(srv.price || 0),
+          image: srv.image || '',
+          wattage: 0,
+          centreComUrl: srv.centreComUrl,
+          centreComUrlVerified: Boolean(srv.centreComUrlVerified),
+          published: Boolean(srv.published),
+          imageReviewStatus: srv.imageReviewStatus,
+          imageSource: srv.imageSource,
+          isBoxPhoto: Boolean(srv.isBoxPhoto),
+          priceStatus: 'current',
+          stockStatus: 'in_stock',
+          specs: srv.specs || {},
+          description: `${srv.brand || ''} ${srv.name}`.trim()
+        };
+        if (isPublishedVerifiedPart(candidate)) {
+          byId.set(id, candidate);
+        }
+      }
+    }
+    return Array.from(byId.values());
+  }, [publishedServerProducts]);
 
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { ALL: BUILDER_PARTS.length };
-    for (const part of BUILDER_PARTS) {
+    const counts: Record<string, number> = { ALL: publishedParts.length };
+    for (const part of publishedParts) {
       counts[part.category] = (counts[part.category] || 0) + 1;
     }
     return counts;
-  }, []);
+  }, [publishedParts]);
 
   const detailPart: BuilderPart | undefined = selectedId
-    ? BUILDER_PARTS.find((p) => p.id === selectedId)
+    ? publishedParts.find((p) => p.id === selectedId)
     : undefined;
 
   const filteredParts = useMemo(() => {
-    let list = BUILDER_PARTS.filter((p) => {
+    let list = publishedParts.filter((p) => {
       if (selectedCategory !== 'ALL' && p.category !== selectedCategory) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -70,7 +145,7 @@ export const ComponentsPage: React.FC<ComponentsPageProps> = ({
       list = [...list].sort((a, b) => a.name.localeCompare(b.name));
     }
     return list;
-  }, [selectedCategory, searchQuery, sortBy]);
+  }, [publishedParts, selectedCategory, searchQuery, sortBy]);
 
   // COMPONENT DETAIL VIEW (/components/:id)
   if (selectedId) {
@@ -164,16 +239,18 @@ export const ComponentsPage: React.FC<ComponentsPageProps> = ({
 
         <div className="qtr-wrap grid gap-10 py-10 sm:py-12 lg:grid-cols-[1.5fr_1fr] lg:gap-12">
           <div className="min-w-0 space-y-8">
-            <div className="flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 p-8">
-              <ProductImageWithPreview
-                src={detailPart.image}
-                alt={detailPart.name}
-                name={detailPart.name}
-                category={detailPart.category}
-                specs={detailPart.specs}
-                thumbnailClassName="w-44 h-44 object-contain rounded-md"
-              />
-            </div>
+            {isVerifiedNonPlaceholderImage(detailPart.image) && (
+              <div className="flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 p-8">
+                <ProductImageWithPreview
+                  src={detailPart.image}
+                  alt={detailPart.name}
+                  name={detailPart.name}
+                  category={detailPart.category}
+                  specs={detailPart.specs}
+                  thumbnailClassName="w-44 h-44 object-contain rounded-md"
+                />
+              </div>
+            )}
 
             <div>
               <h2 className="font-heading text-[20px] font-bold text-navy">Overview</h2>
@@ -280,14 +357,14 @@ export const ComponentsPage: React.FC<ComponentsPageProps> = ({
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
-                {detailPart.priceStatus === 'current' || detailPart.centreComUrl ? (
+                {detailPart.priceStatus === 'current' && detailPart.centreComUrlVerified ? (
                   <span className="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    Verified price
+                    Verified Centre Com price
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800">
-                    Estimated price
+                    Awaiting verification
                   </span>
                 )}
               </div>
@@ -497,9 +574,28 @@ export const ComponentsPage: React.FC<ComponentsPageProps> = ({
               </div>
             </div>
 
+            {filteredParts.length === 0 ? (
+              <div className="rounded-md border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+                <p className="font-heading text-[16px] font-bold text-navy">
+                  No verified published components in this view yet
+                </p>
+                <p className="mx-auto mt-2 max-w-lg text-[13px] leading-relaxed text-slate-600">
+                  Every public component listing requires a verified direct Centre Com product page and an approved
+                  unpackaged product photograph from our Admin Photo Review Queue. Or configure a build with your own
+                  supplied parts in the Custom PC Builder.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('builder')}
+                  className="mt-5 inline-flex h-10 items-center rounded-md bg-navy px-4 text-[12.5px] font-semibold text-white hover:bg-navy-800"
+                >
+                  Open Custom PC Builder
+                </button>
+              </div>
+            ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {filteredParts.map((part) => {
-                const isVerified = part.priceStatus === 'current' || Boolean(part.centreComUrl);
+                const isVerified = Boolean(part.centreComUrlVerified) && part.priceStatus === 'current';
                 return (
                   <div
                     key={part.id}
@@ -555,7 +651,7 @@ export const ComponentsPage: React.FC<ComponentsPageProps> = ({
                             isVerified ? 'text-emerald-700' : 'text-slate-500'
                           }`}
                         >
-                          {isVerified ? 'VERIFIED' : 'ESTIMATED'}
+                          {isVerified ? 'VERIFIED' : 'REVIEW'}
                         </span>
                       </div>
 
@@ -580,6 +676,7 @@ export const ComponentsPage: React.FC<ComponentsPageProps> = ({
                 );
               })}
             </div>
+            )}
           </div>
         </div>
       </div>

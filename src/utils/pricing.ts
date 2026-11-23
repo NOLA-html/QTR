@@ -3,6 +3,8 @@ export interface PcComponentItem {
   category: string;
   price: number;
   included?: boolean;
+  isCustomerSupplied?: boolean;
+  partId?: string;
   specNote?: string;
   plainNote?: string;
 }
@@ -38,8 +40,24 @@ export interface CustomPcProduct {
   features: string[];
 }
 
+export type AssemblyPackageId = 'minimum' | 'medium' | 'full' | 'fast';
+
+export interface AssemblyPackage {
+  id: string;
+  optionNumber: number;
+  name: string;
+  shortLabel: string;
+  price: number;
+  enabled: boolean;
+  description: string;
+  shortSummary: string;
+  includes: string[];
+  doesNotInclude: string[];
+  footnote?: string;
+}
+
 export interface BuildServiceOption {
-  id: 'fast' | 'full';
+  id: AssemblyPackageId;
   name: string;
   price: number;
   description: string;
@@ -71,45 +89,139 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
   expressTimeframe: '1–2 business days'
 };
 
-export const BUILD_SERVICES: Record<'fast' | 'full', BuildServiceOption> = {
-  fast: {
-    id: 'fast',
-    name: 'Fast Build',
+export const DEFAULT_ASSEMBLY_PACKAGES: AssemblyPackage[] = [
+  {
+    id: 'minimum',
+    optionNumber: 1,
+    name: 'Option 1: Minimum Assembly',
+    shortLabel: 'Minimum Assembly',
     price: 100.0,
-    description: 'Assembled correctly, connections checked, power-on self-test (POST) only.',
-    footnote: 'This option is assembly plus a basic POST test only. Windows, drivers and testing are not included.',
+    enabled: true,
+    description: 'Hardware assembly, connection checks, and basic power-on self-test (POST) only.',
+    shortSummary: 'Hardware assembly & POST test only',
+    footnote: 'Assembly plus basic POST verification only. Operating system setup, drivers, and benchmarking are excluded.',
     includes: [
-      'Correct PC assembly',
-      'Basic checks of component connections',
-      'A power-on self-test (POST)'
+      'Correct PC hardware assembly',
+      'Basic check of internal power & data connections',
+      'Power-on self-test (POST) verification'
     ],
     doesNotInclude: [
-      'Professional cable management',
-      'Windows installation',
-      'Driver or application installation',
-      'Performance benchmarks',
-      'Comprehensive testing or optimisation'
+      'Full cable management styling',
+      'Windows / OS installation & activation',
+      'Driver or utility installation',
+      'Extended stress testing or thermal soak',
+      'FPS gaming benchmarks'
     ]
+  },
+  {
+    id: 'medium',
+    optionNumber: 2,
+    name: 'Option 2: Medium Assembly',
+    shortLabel: 'Medium Assembly',
+    price: 150.0,
+    enabled: true,
+    description: 'Complete PC assembly, clean cable management, Windows setup, drivers & BIOS check.',
+    shortSummary: 'Assembly, cable management & OS/driver setup',
+    footnote: 'Covers labour and OS/driver setup. Extended multi-game FPS benchmarking is part of Option 3.',
+    includes: [
+      'Correct PC hardware assembly',
+      'Clean cable management & airflow routing',
+      'Windows installation using your included licence',
+      'Essential chipset, GPU, audio & network drivers',
+      'Memory XMP / EXPO verification & basic check'
+    ],
+    doesNotInclude: [
+      'Extended multi-hour thermal & power stress testing',
+      'Multi-game FPS benchmark suite (Payday 2, Fortnite, RDR2)'
+    ]
+  },
+  {
+    id: 'full',
+    optionNumber: 3,
+    name: 'Option 3: Full Assembly & Testing',
+    shortLabel: 'Full Assembly & Testing',
+    price: 250.0,
+    enabled: true,
+    description: 'Precision assembly, bespoke cabling, OS & drivers, full stress tests, FPS benchmarks & QC.',
+    shortSummary: 'Complete build, OS/drivers, stress test & FPS benchmarks',
+    footnote: 'Comprehensive workshop service including 9-step QA verification and real-game FPS benchmark report.',
+    includes: [
+      'Correct PC hardware assembly',
+      'Professional bespoke cable management',
+      'Windows installation using the included licence',
+      'Essential chipset, GPU, BIOS & utility setup',
+      'Comprehensive thermal & stability stress testing',
+      'Real-game FPS benchmarks (Payday 2, Fortnite, Red Dead Redemption 2)',
+      '9-point workshop quality control sign-off before dispatch'
+    ],
+    doesNotInclude: [
+      'Additional paid software licences beyond included Windows licence'
+    ]
+  }
+];
+
+export function normalizeAssemblyPackageId(id?: string | null): 'minimum' | 'medium' | 'full' {
+  const lower = String(id || '').trim().toLowerCase();
+  if (lower === 'full') return 'full';
+  if (lower === 'medium') return 'medium';
+  if (lower === 'minimum' || lower === 'fast') return 'minimum';
+  return 'minimum';
+}
+
+export function resolveAssemblyPackage(
+  id?: string | null,
+  packages: AssemblyPackage[] = DEFAULT_ASSEMBLY_PACKAGES
+): AssemblyPackage {
+  const raw = String(id || '').trim().toLowerCase();
+  const normalized = normalizeAssemblyPackageId(raw);
+  const directMatch = packages.find((p) => p.id.toLowerCase() === raw);
+  if (directMatch) return directMatch;
+  const normalizedMatch = packages.find((p) => p.id.toLowerCase() === normalized);
+  if (normalizedMatch) return normalizedMatch;
+  return packages[0] || DEFAULT_ASSEMBLY_PACKAGES[0];
+}
+
+// Backwards-compatible map keyed by legacy + new IDs
+export const BUILD_SERVICES: Record<'minimum' | 'medium' | 'full' | 'fast', BuildServiceOption> = {
+  minimum: {
+    id: 'minimum',
+    name: DEFAULT_ASSEMBLY_PACKAGES[0].name,
+    price: DEFAULT_ASSEMBLY_PACKAGES[0].price,
+    description: DEFAULT_ASSEMBLY_PACKAGES[0].description,
+    shortSummary: DEFAULT_ASSEMBLY_PACKAGES[0].shortSummary,
+    footnote: DEFAULT_ASSEMBLY_PACKAGES[0].footnote,
+    includes: DEFAULT_ASSEMBLY_PACKAGES[0].includes,
+    doesNotInclude: DEFAULT_ASSEMBLY_PACKAGES[0].doesNotInclude
+  },
+  fast: {
+    id: 'fast',
+    name: DEFAULT_ASSEMBLY_PACKAGES[0].name,
+    price: DEFAULT_ASSEMBLY_PACKAGES[0].price,
+    description: DEFAULT_ASSEMBLY_PACKAGES[0].description,
+    shortSummary: DEFAULT_ASSEMBLY_PACKAGES[0].shortSummary,
+    footnote: DEFAULT_ASSEMBLY_PACKAGES[0].footnote,
+    includes: DEFAULT_ASSEMBLY_PACKAGES[0].includes,
+    doesNotInclude: DEFAULT_ASSEMBLY_PACKAGES[0].doesNotInclude
+  },
+  medium: {
+    id: 'medium',
+    name: DEFAULT_ASSEMBLY_PACKAGES[1].name,
+    price: DEFAULT_ASSEMBLY_PACKAGES[1].price,
+    description: DEFAULT_ASSEMBLY_PACKAGES[1].description,
+    shortSummary: DEFAULT_ASSEMBLY_PACKAGES[1].shortSummary,
+    footnote: DEFAULT_ASSEMBLY_PACKAGES[1].footnote,
+    includes: DEFAULT_ASSEMBLY_PACKAGES[1].includes,
+    doesNotInclude: DEFAULT_ASSEMBLY_PACKAGES[1].doesNotInclude
   },
   full: {
     id: 'full',
-    name: 'Full Build & Setup',
-    price: 250.0,
-    description: 'Assembled, cabled, Windows installed, drivers loaded, benchmarked and quality checked.',
-    footnote: 'Covers labour and setup only. Additional software licences are not included, and Windows is never charged twice.',
-    includes: [
-      'Correct PC assembly',
-      'Professional cable management',
-      'Windows installation using the included licence',
-      'Essential driver installation',
-      'Installation of agreed applications and software',
-      'Comprehensive hardware and system testing',
-      'Performance benchmarks and stability checks',
-      'Final quality control before dispatch'
-    ],
-    doesNotInclude: [
-      'Additional software licences (Windows 11 Home is already included with the parts)'
-    ]
+    name: DEFAULT_ASSEMBLY_PACKAGES[2].name,
+    price: DEFAULT_ASSEMBLY_PACKAGES[2].price,
+    description: DEFAULT_ASSEMBLY_PACKAGES[2].description,
+    shortSummary: DEFAULT_ASSEMBLY_PACKAGES[2].shortSummary,
+    footnote: DEFAULT_ASSEMBLY_PACKAGES[2].footnote,
+    includes: DEFAULT_ASSEMBLY_PACKAGES[2].includes,
+    doesNotInclude: DEFAULT_ASSEMBLY_PACKAGES[2].doesNotInclude
   }
 };
 
@@ -457,13 +569,14 @@ export function formatAud(amount: number): string {
 
 export function calculatePcOrderPricing(
   pc: CustomPcProduct,
-  buildServiceId: 'fast' | 'full',
+  buildServiceId: string,
   deliveryMethodId: 'pickup' | 'normal' | 'express',
-  shippingConfig: ShippingConfig = DEFAULT_SHIPPING_CONFIG
+  shippingConfig: ShippingConfig = DEFAULT_SHIPPING_CONFIG,
+  assemblyPackages: AssemblyPackage[] = DEFAULT_ASSEMBLY_PACKAGES
 ) {
   const partsAndWindowsPrice = pc.basePrice;
-  const buildService = BUILD_SERVICES[buildServiceId];
-  const buildServicePrice = buildService.price;
+  const resolvedPkg = resolveAssemblyPackage(buildServiceId, assemblyPackages);
+  const buildServicePrice = resolvedPkg.price;
 
   const subtotalBeforeDelivery = partsAndWindowsPrice + buildServicePrice;
 
@@ -492,8 +605,8 @@ export function calculatePcOrderPricing(
     pcId: pc.id,
     pcName: pc.name,
     partsAndWindowsPrice,
-    buildServiceId,
-    buildServiceName: buildService.name,
+    buildServiceId: resolvedPkg.id,
+    buildServiceName: resolvedPkg.name,
     buildServicePrice,
     subtotalBeforeDelivery,
     deliveryMethodId,

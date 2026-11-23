@@ -412,7 +412,7 @@ You must return ONLY a JSON object (no markdown backticks, no code fence) with t
 If the model is genuinely invalid, fictional, or ambiguous, return {"found": false, "reason": "clear explanation"}.`;
 
       const response = await aiClient.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-4-hydrogen',
         contents: prompt,
         config: {
           tools: [{ googleSearch: {} }],

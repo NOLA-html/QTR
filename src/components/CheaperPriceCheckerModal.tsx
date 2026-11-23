@@ -290,15 +290,19 @@ export const CheaperPriceCheckerModal: React.FC<CheaperPriceCheckerModalProps> =
                       Centre Com Reference Price:{' '}
                       <strong className="text-slate-800">{formatAud(activePart.price)}</strong>
                     </span>
-                    <a
-                      href={centreComAudit?.centreComUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-amber-700 hover:underline flex items-center gap-0.5"
-                    >
-                      <span>View on Centre Com</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
+                    {centreComAudit?.centreComUrl ? (
+                      <a
+                        href={centreComAudit.centreComUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-amber-700 hover:underline flex items-center gap-0.5"
+                      >
+                        <span>View on Centre Com</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    ) : (
+                      <span className="text-slate-400">Centre Com URL pending verification</span>
+                    )}
                   </div>
                 )}
               </div>
