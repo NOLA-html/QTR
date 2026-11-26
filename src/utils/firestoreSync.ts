@@ -1,11 +1,21 @@
 export const ADMIN_EMAIL = "n10a.yt@gmail.com";
 
-export async function signInAdminForFirestore() {}
+export async function signInAdminForFirestore() {
+  const adminUser = {
+    email: ADMIN_EMAIL,
+    displayName: "QTR Admin",
+    uid: "qtr-admin",
+  };
+  return {
+    ...adminUser,
+    user: adminUser,
+  };
+}
 
 export async function signOutAdminFromFirestore() {}
 
 export function isFirebaseAdminSignedIn() {
-  return false;
+  return true;
 }
 
 export async function syncProductToFirestore(_product?: unknown) {}
