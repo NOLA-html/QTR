@@ -5,6 +5,9 @@ export async function signInAdminForFirestore() {
     email: ADMIN_EMAIL,
     displayName: "QTR Admin",
     uid: "qtr-admin",
+    authorized: true,
+    isAuthorized: true,
+    isAdmin: true,
   };
   return {
     ...adminUser,
