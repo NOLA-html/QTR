@@ -93,69 +93,66 @@ export const DEFAULT_ASSEMBLY_PACKAGES: AssemblyPackage[] = [
   {
     id: 'minimum',
     optionNumber: 1,
-    name: 'Option 1: Minimum Assembly',
-    shortLabel: 'Minimum Assembly',
+    name: 'Option 1: Minimum Assembly — Fastest Option',
+    shortLabel: 'Minimum Assembly (Fastest)',
     price: 100.0,
     enabled: true,
-    description: 'Hardware assembly, connection checks, and basic power-on self-test (POST) only.',
-    shortSummary: 'Hardware assembly & POST test only',
-    footnote: 'Assembly plus basic POST verification only. Operating system setup, drivers, and benchmarking are excluded.',
+    description: 'Quickest and simplest physical assembly option to get your PC built as fast as possible. Basic cable management only; no detailed cable routing or post-assembly testing package.',
+    shortSummary: 'Fastest option — physical build & basic cabling only (no testing package)',
+    footnote: 'Fastest tier: component installation and necessary cabling only. No detailed cosmetic cable routing or post-assembly testing package.',
     includes: [
-      'Correct PC hardware assembly',
-      'Basic check of internal power & data connections',
-      'Power-on self-test (POST) verification'
+      'Install all selected components into the PC case',
+      'Connect the necessary power and component cables',
+      'Basic cable management only'
     ],
     doesNotInclude: [
-      'Full cable management styling',
-      'Windows / OS installation & activation',
-      'Driver or utility installation',
-      'Extended stress testing or thermal soak',
-      'FPS gaming benchmarks'
+      'Detailed cable routing or cosmetic cable organisation',
+      'Post-assembly boot, component recognition, or stress testing package',
+      'Operating system setup, drivers, or FPS gaming benchmarks'
     ]
   },
   {
     id: 'medium',
     optionNumber: 2,
-    name: 'Option 2: Medium Assembly',
-    shortLabel: 'Medium Assembly',
+    name: 'Option 2: Medium Assembly — Complete Assembly (Balanced Option)',
+    shortLabel: 'Medium Assembly (Balanced)',
     price: 150.0,
     enabled: true,
-    description: 'Complete PC assembly, clean cable management, Windows setup, drivers & BIOS check.',
-    shortSummary: 'Assembly, cable management & OS/driver setup',
-    footnote: 'Covers labour and OS/driver setup. Extended multi-game FPS benchmarking is part of Option 3.',
+    description: 'Complete balanced assembly option: organised cable management, proper functional cable routing, connection and cooling checks, basic post-assembly boot testing, and confirmation that main components are recognised.',
+    shortSummary: 'Balanced complete assembly — organised cabling, connection checks & basic boot check',
+    footnote: 'Balanced tier: properly assembled and verified booting with main hardware recognised (functional cable routing, not cosmetic showcase).',
     includes: [
-      'Correct PC hardware assembly',
-      'Clean cable management & airflow routing',
-      'Windows installation using your included licence',
-      'Essential chipset, GPU, audio & network drivers',
-      'Memory XMP / EXPO verification & basic check'
+      'Everything in Minimum Assembly',
+      'Organised cable management & proper functional cable routing',
+      'Check component connections, fans & cooling connections',
+      'Basic post-assembly boot testing',
+      'Confirm main components (CPU, RAM, GPU, storage) are recognised'
     ],
     doesNotInclude: [
-      'Extended multi-hour thermal & power stress testing',
+      'Cosmetic hidden-cable showcase presentation',
+      'Temperature, extended stress, or crash stability testing',
       'Multi-game FPS benchmark suite (Payday 2, Fortnite, RDR2)'
     ]
   },
   {
     id: 'full',
     optionNumber: 3,
-    name: 'Option 3: Full Assembly & Testing',
-    shortLabel: 'Full Assembly & Testing',
+    name: 'Option 3: Full Assembly & Testing — Premium',
+    shortLabel: 'Full Assembly & Testing (Premium)',
     price: 250.0,
     enabled: true,
-    description: 'Precision assembly, bespoke cabling, OS & drivers, full stress tests, FPS benchmarks & QC.',
-    shortSummary: 'Complete build, OS/drivers, stress test & FPS benchmarks',
-    footnote: 'Comprehensive workshop service including 9-step QA verification and real-game FPS benchmark report.',
+    description: 'Highest-quality premium option: carefully routed and hidden cables with clean professional internal presentation, full boot and component recognition checks, temperature checks, stress and crash stability testing, plus measured real-game FPS testing.',
+    shortSummary: 'Premium tier — showcase hidden cabling, thermal/stress stability & real-game FPS tests',
+    footnote: 'Premium tier: clean hidden cable routing, full 9-point QA/stress checks, and authentic FPS benchmarks (never invented).',
     includes: [
-      'Correct PC hardware assembly',
-      'Professional bespoke cable management',
-      'Windows installation using the included licence',
-      'Essential chipset, GPU, BIOS & utility setup',
-      'Comprehensive thermal & stability stress testing',
-      'Real-game FPS benchmarks (Payday 2, Fortnite, Red Dead Redemption 2)',
-      '9-point workshop quality control sign-off before dispatch'
+      'Everything in Medium Assembly',
+      'Carefully routed & hidden cables for clean professional internal presentation',
+      'Full boot & complete component recognition checks',
+      'Temperature checks, stress testing, and crash/stability checks',
+      'Gaming performance testing: Payday 2 (Low), Fortnite (Medium), Red Dead Redemption 2 (Maximum) — actual measured avg/min/max FPS only'
     ],
     doesNotInclude: [
-      'Additional paid software licences beyond included Windows licence'
+      'Additional paid software licences beyond components selected in your build'
     ]
   }
 ];

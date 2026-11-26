@@ -631,11 +631,11 @@ export const ComponentsPage: React.FC<ComponentsPageProps> = ({
                     </a>
 
                     <div className="mt-3 flex flex-wrap gap-1">
-                      {Object.values(part.specs || {})
+                      {Object.entries(part.specs || {})
                         .slice(0, 3)
-                        .map((badge) => (
+                        .map(([specKey, badge]) => (
                           <span
-                            key={badge}
+                            key={specKey}
                             className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
                           >
                             {badge}

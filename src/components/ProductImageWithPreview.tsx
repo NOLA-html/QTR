@@ -90,7 +90,6 @@ export const ProductImageWithPreview: React.FC<ProductImageWithPreviewProps> = (
           alt={alt}
           onError={() => setImageError(true)}
           className={`${thumbnailClassName} transition-transform duration-200 group-hover/img:scale-105 bg-white border border-slate-200`}
-          loading="lazy"
         />
 
         <div className="absolute inset-0 bg-navy/10 opacity-0 group-hover/img:opacity-100 transition-opacity rounded-md flex items-center justify-center pointer-events-none">

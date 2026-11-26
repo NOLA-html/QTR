@@ -60,7 +60,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 // Connection test on boot as required by skill
 export async function testConnection() {
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    await getDocFromServer(doc(db, 'assemblyPackages', 'minimum'));
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
       console.warn('Firebase connection check: client is offline or database initializing.');

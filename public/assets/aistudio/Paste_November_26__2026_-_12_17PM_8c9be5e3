@@ -1,0 +1,918 @@
+# QWICK TECH REPAIRS — COMPLETE MASTER WEBSITE DEVELOPMENT PROMPT
+
+Develop and complete my existing Qwick Tech Repairs (QTR) website. This is a full website development project, not just a visual redesign. Implement the functionality, use genuine products and data, test everything and fix problems.
+
+## 1. Important project rules
+
+- Inspect the entire existing website before making changes.
+- Preserve existing working features, customer data, business information and integrations.
+- Do not modify unrelated websites, repositories or projects.
+- Do not modify a separate QTR GitHub project unless explicitly instructed.
+- Never use placeholder products, fake prices, fake stock, fake reviews or invented business information.
+- Do not remove working functionality unnecessarily.
+- Implement actual working functionality, not just visual mock-ups.
+- Report platform limitations honestly.
+
+## 2. Official QTR logo and favicon
+
+Use these exact assets:
+
+**Main QTR logo:**
+https://chatgpt.com/library/file/libfile_55f5db7646b08191b821be0cbc348903
+
+Use it in the website header, navigation, footer and branding.
+
+**Official favicon:**
+https://chatgpt.com/s/m_6b07857047c881918d17c104fecb7e37
+
+Use it for browser tabs, bookmarks and supported mobile shortcuts.
+
+Generate the required favicon sizes, including 16×16, 32×32 and 48×48.
+
+Rules:
+- Never swap the two images.
+- Never recreate, redesign or AI-generate either asset.
+- Preserve original artwork, colours and proportions.
+- If either asset cannot be accessed, report it rather than substituting another image.
+- Test both assets on the finished website.
+
+## 3. Brand design
+
+Use QTR's white-and-blue branding.
+
+Create a professional Australian technology business website. Avoid generic AI designs, excessive gradients, repetitive cards, fake testimonials, unnecessary animations and placeholder content.
+
+Use consistent typography, spacing, navigation and responsive layouts.
+
+## 4. Competitor and build research
+
+Research:
+- Centre Com.
+- Scorptec.
+- Mwave.
+- PCCaseGear.
+- Umart.
+- Evatech.
+- PCPartPicker.
+
+Study their product catalogues, PC builders, prebuilt PCs, compatibility information, filters, pricing, assembly services and customer experience.
+
+Use their strongest ideas without copying proprietary code, branding, text or images.
+
+## 5. Intel and AMD branding
+
+Use the correct supplied Intel and AMD logos.
+
+- Intel must use its correct blue branding.
+- AMD must use its correct red branding.
+- Preserve proportions.
+- Never use incorrect or distorted logos.
+- Do not invent replacements if the original assets cannot be found.
+
+## 6. Expand the real component catalogue
+
+The current catalogue is too small, especially Intel CPUs. I currently have only around three Intel CPU options.
+
+Significantly expand the actual product database.
+
+**Intel CPUs — highest priority**
+
+Include a wide range of genuine:
+- Core i3.
+- Core i5.
+- Core i7.
+- Core i9.
+- Core Ultra 5.
+- Core Ultra 7.
+- Core Ultra 9.
+
+Include relevant generations, older and newer models, different performance levels and price ranges, and K, KF, F and standard variants.
+
+Record exact model numbers, sockets, cores, threads, supported RAM, integrated graphics and power specifications where available.
+
+**AMD CPUs**
+
+Include:
+- Ryzen 3.
+- Ryzen 5.
+- Ryzen 7.
+- Ryzen 9.
+- Ryzen X3D.
+- Threadripper where appropriate.
+
+**Expand all other categories:**
+- CPU coolers.
+- Motherboards.
+- RAM.
+- Graphics cards.
+- NVMe SSDs.
+- SATA SSDs.
+- Hard drives.
+- PC cases.
+- Power supplies.
+- Case fans.
+- Operating systems.
+- Accessories.
+- Peripherals.
+
+Include different manufacturers, specifications and price levels.
+
+Use genuine products with exact names, model numbers and part numbers. Do not invent products or create duplicate entries.
+
+New products must work with the real catalogue, search, filters, compatibility checker, PC builder and prebuilt PC system.
+
+## 7. Flat product images
+
+I want flat, straight-on product images, not angled 3D renders.
+
+Use:
+- Straight-on views.
+- Front-facing product images.
+- Top-down views where appropriate.
+- Clean white, transparent or neutral backgrounds.
+- Consistent framing.
+- The complete product visible.
+
+Examples:
+- CPU: top surface facing the viewer.
+- GPU: straight-on view of the actual graphics card.
+- Motherboard: directly from above.
+- RAM: straight-on.
+- SSD: directly facing the viewer.
+- Case: straight-on front view where available.
+- PSU: straight-on product presentation.
+
+Do not use isometric views, dramatic angles, tilted renders, floating objects or unrelated lifestyle photography as the main image.
+
+Use genuine manufacturer or authorised retailer images where permitted. Never AI-generate a fake product image or alter the product's physical design.
+
+If an appropriate image cannot be found, flag it for review.
+
+## 8. Product image interactions
+
+On hover:
+- Enlarge images approximately 1.4–1.7 times.
+- Use a smooth 200–300 ms transition.
+- Prevent clipping.
+- Avoid moving surrounding content.
+- Support tap-to-preview on touch devices.
+- Respect reduced-motion settings.
+
+## 9. Advanced PC builder
+
+Build a complete PC configurator supporting:
+
+- CPU.
+- CPU cooler.
+- Motherboard.
+- RAM.
+- Graphics card.
+- Storage.
+- PC case.
+- Power supply.
+- Case fans.
+- Operating system.
+- Accessories.
+- Peripherals.
+
+Customers must be able to add, remove and replace components.
+
+Display real images, names, specifications, prices, availability and compatibility information.
+
+## 10. Working component filters
+
+Implement working filters for every category.
+
+Examples:
+
+**CPU:** manufacturer, family, generation, socket, cores, threads, price and performance.
+
+**GPU:** manufacturer, VRAM, memory type, performance and price.
+
+**Motherboard:** socket, chipset, form factor, RAM generation, Wi-Fi and storage connectivity.
+
+**RAM:** DDR generation, capacity, speed and module count.
+
+**Storage:** SSD/HDD, NVMe/SATA, capacity and interface.
+
+**Case:** form factor, motherboard support, GPU clearance and cooling support.
+
+Include sorting and clear-filter controls.
+
+Filters must use actual structured product attributes, not manually assigned labels or frontend-only tricks.
+
+## 11. Compatibility checker
+
+Check:
+- CPU and motherboard socket.
+- BIOS support.
+- RAM generation and capacity.
+- GPU dimensions and case clearance.
+- Cooler compatibility.
+- Motherboard and case form factor.
+- Storage interfaces and available slots.
+- PSU wattage and connectors.
+- GPU power requirements.
+- Fan and cooling support.
+
+Show:
+- Compatible.
+- Incompatible.
+- Potential issue.
+- Requires verification.
+
+Explain any issues clearly.
+
+Use AI as an additional verification layer, not as a replacement for deterministic checks. Never invent specifications or assume compatibility.
+
+## 12. AI PC build assistant
+
+Allow customers to describe:
+- Budget.
+- Intended use.
+- Games and applications.
+- Resolution.
+- Intel or AMD preference.
+- GPU preference.
+- Storage requirements.
+- Upgrade plans.
+
+Recommend real products from the QTR catalogue. Explain recommendations and verify compatibility.
+
+Never invent prices or stock. Never purchase automatically.
+
+## 13. Live build summary
+
+Show selected components, images, names, individual prices, total price, estimated power requirements, compatibility and missing components.
+
+Update immediately when selections change.
+
+Allow customers to save, reopen, share and export builds where supported.
+
+## 14. Prebuilt PC section — major expansion required
+
+The existing prebuilt PC section needs significantly more builds.
+
+Do not create only a handful of generic configurations. Research real PC builds online and create a substantial, varied collection of useful prebuilt configurations.
+
+### Research real builds online
+
+Research reputable sources, including:
+- PCPartPicker completed builds and build guides.
+- PCPartPicker build lists.
+- Reputable PC building guides and tutorials.
+- Manufacturer compatibility documentation.
+- Reputable technology publications.
+- Australian PC retailers and their actual component catalogues.
+
+Use these sources to identify good component combinations and sensible build configurations.
+
+Do not blindly copy a build from the internet. Treat online builds as research starting points.
+
+For every proposed build:
+1. Identify the original component combination.
+2. Check whether the components are genuine products.
+3. Check current Australian availability.
+4. Find current Australian prices.
+5. Check every component's specifications.
+6. Run the QTR compatibility checker.
+7. Replace unavailable or unsuitable components with appropriate alternatives.
+8. Verify the final total.
+9. Assign the correct category and filters.
+10. Include assembly and service costs.
+
+Do not copy another website's text, branding or images. Attribute research sources where appropriate.
+
+### Create many more prebuilt configurations
+
+Create a useful range across these categories:
+
+**Budget**
+- Entry-level everyday PC.
+- Budget gaming PC.
+- Affordable upgrade-friendly PC.
+
+**Mid-range**
+- 1080p gaming.
+- High-refresh-rate 1080p gaming.
+- 1440p gaming.
+- General gaming and productivity.
+
+**High performance**
+- High-performance 1440p gaming.
+- 4K gaming.
+- Enthusiast gaming.
+- High-end workstation.
+
+**Specialist**
+- Video editing.
+- Streaming.
+- Content creation.
+- Programming and development.
+- Productivity.
+- General home and office use.
+
+Create additional sensible builds when research supports them.
+
+Do not create meaningless variations just to inflate the number of builds. Each build must have a clear purpose and a genuinely appropriate parts list.
+
+### Every prebuilt PC must have a complete parts list
+
+For every prebuilt configuration, include:
+
+- CPU.
+- CPU cooler.
+- Motherboard.
+- RAM.
+- Graphics card.
+- Storage.
+- PC case.
+- Power supply.
+- Case fans where needed.
+- Operating system where included.
+- Any other included components.
+
+Show the exact model of every part.
+
+Do not use vague descriptions such as "Intel i7", "32 GB RAM" or "1 TB SSD" when the exact product model is known.
+
+Show the customer exactly what they are purchasing.
+
+### Include the maximum applicable assembly option
+
+This is extremely important.
+
+Every prebuilt PC's displayed price must account for the applicable QTR assembly and testing service.
+
+Inspect the existing Assembly & Testing options and their actual prices.
+
+Use the **maximum applicable assembly and testing option** in the prebuilt PC's fully assembled price calculation.
+
+Do not accidentally use the cheapest assembly option when calculating the fully assembled prebuilt price.
+
+For every prebuilt PC, show:
+
+- Total component cost.
+- Assembly and testing option selected.
+- Assembly and testing price.
+- Other applicable included costs.
+- Final fully assembled price.
+
+Use the actual existing QTR assembly prices. Do not invent or change them.
+
+If there are additional required charges, identify them clearly. Do not silently exclude them.
+
+If an assembly option is optional, distinguish the component-only price from the fully assembled price.
+
+### Prebuilt PC compatibility requirements
+
+Every prebuilt build must pass the compatibility checker.
+
+Verify:
+- CPU and motherboard socket.
+- BIOS support.
+- RAM compatibility.
+- GPU clearance.
+- Case dimensions.
+- Cooler clearance.
+- PSU capacity and connectors.
+- Storage support.
+- Cooling requirements.
+- All other relevant component dependencies.
+
+Do not publish a build as verified if any important compatibility check remains unresolved.
+
+### Prebuilt PC quality requirements
+
+- Use balanced component combinations.
+- Avoid pairing expensive components with unsuitable low-quality supporting parts.
+- Avoid inadequate power supplies.
+- Avoid unnecessary overspending.
+- Consider upgradeability.
+- Consider cooling and airflow.
+- Consider the intended gaming resolution and workload.
+- Use sensible RAM and storage capacities.
+- Choose reputable component models.
+
+Each build should explain what it is good for and who it is intended for.
+
+## 15. Prebuilt PC filters — classify every build correctly
+
+This is a critical requirement.
+
+Every prebuilt PC must be assigned to the correct filters based on its actual specifications and verified performance.
+
+Do not randomly assign categories.
+
+Create filters for:
+
+**Budget**
+- Budget range.
+- Minimum and maximum price.
+- Component cost.
+- Fully assembled price.
+
+**Performance**
+- Entry-level.
+- Budget.
+- Mid-range.
+- High-end.
+- Enthusiast.
+
+**Gaming resolution**
+- 1080p.
+- 1440p.
+- 4K.
+
+**Usage**
+- Gaming.
+- Streaming.
+- Video editing.
+- Content creation.
+- Workstation.
+- Productivity.
+- Home and office.
+
+**Processor**
+- Intel.
+- AMD.
+- Core family or Ryzen family.
+
+**Graphics**
+- NVIDIA.
+- AMD.
+- Integrated graphics where applicable.
+
+**Memory**
+- RAM capacity.
+- DDR generation.
+
+**Storage**
+- Storage capacity.
+- SSD/HDD configuration.
+
+**Assembly**
+- Component-only.
+- Fully assembled.
+- Assembly and testing option.
+
+A build can appear in multiple relevant categories.
+
+For example, a verified 1440p gaming PC may also appear under AMD, gaming, mid-range and 32 GB RAM filters.
+
+Use the actual component specifications to populate the filters automatically.
+
+When a product or build changes, update its filter classification accordingly.
+
+Do not allow outdated tags or incorrect categories to remain.
+
+## 16. Continuous prebuilt price and availability checking
+
+I want the website to keep checking the prebuilt PCs so their prices remain accurate.
+
+Build a proper automated monitoring system rather than relying on someone manually updating prices.
+
+### What must be checked
+
+For every prebuilt PC, periodically verify:
+
+- Every CPU price.
+- Every cooler price.
+- Every motherboard price.
+- Every RAM price.
+- Every GPU price.
+- Every storage price.
+- Every case price.
+- Every PSU price.
+- Every fan price where applicable.
+- Every other included component.
+- Current availability.
+- Product links.
+- Assembly and testing costs.
+
+Calculate the total again from the individual components.
+
+Never rely on an old saved total when individual component prices have changed.
+
+### Price monitoring sources
+
+Where available, check:
+- Centre Com.
+- Scorptec.
+- Mwave.
+- PCCaseGear.
+- Umart.
+- Manufacturer and authorised retailer product pages.
+
+Use legitimate APIs, permitted feeds, approved integrations or other methods that respect website terms and access restrictions.
+
+Do not bypass CAPTCHAs, access controls or anti-bot protections.
+
+Do not invent a price when a retailer cannot be checked.
+
+### Automated monitoring schedule
+
+Implement scheduled background price checks.
+
+- Check prebuilt component prices at least daily where data sources allow.
+- Check more frequently where reliable APIs or feeds permit.
+- Recheck prices when an administrator opens a prebuilt configuration for review.
+- Recheck components before a customer proceeds to purchase, where supported.
+- Update the displayed total after verified price changes.
+
+Do not describe the system as real-time if it only checks daily.
+
+### Price history
+
+Keep a record of:
+- Previous price.
+- Current verified price.
+- Retailer.
+- Date and time checked.
+- Availability.
+- Price change.
+- Source URL.
+- Verification status.
+
+Display a useful last-checked timestamp.
+
+### Price status
+
+Show clear statuses:
+
+- Live verified.
+- Recently verified.
+- Last known.
+- Estimated.
+- Unavailable.
+- Needs manual review.
+
+Never show an estimated price as if it were a live verified price.
+
+If a source stops working or a product cannot be verified, flag it instead of silently retaining an old price as current.
+
+### Price-change alerts
+
+Add administrator alerts when:
+- A component price changes significantly.
+- A component becomes unavailable.
+- A product link stops working.
+- A prebuilt PC's total changes.
+- A component is discontinued.
+- A cheaper suitable alternative is found.
+
+Allow administrators to review changes before they affect published prices where appropriate.
+
+Keep an audit history.
+
+## 17. Prebuilt PC maintenance and replacement parts
+
+When a component becomes unavailable or discontinued:
+
+1. Identify the affected prebuilt PCs.
+2. Find suitable replacement components.
+3. Check compatibility.
+4. Compare current prices.
+5. Recalculate the full build price.
+6. Recheck the assembly cost.
+7. Recheck the correct filters.
+8. Flag the updated build for administrator review if required.
+
+Never automatically replace a component with an incompatible or inferior product.
+
+Preserve the original build and change history.
+
+## 18. Peripheral reminder — required in both shopping sections
+
+Display this reminder before adding a custom-built or prebuilt PC to the cart.
+
+Use it in:
+1. Custom PC Builder.
+2. Prebuilt PC section.
+
+Use this exact initial popup wording:
+
+**Before adding your PC to cart!**
+
+## Have you remembered your peripherals?
+
+Your custom-built PC includes the computer only. **Peripherals are NOT included**:
+
+- **Monitor**
+- **Keyboard**
+- **Mouse**
+- **Headphones**
+- **Microphone**
+
+These items must be added or purchased separately. Confirm below if you already have them or have budgeted for them, or return to keep your build selections intact.
+
+**Please wait 1 second to confirm.**
+
+Buttons:
+
+**NO, I DIDN'T FACTOR IT IN**
+
+**YES, I UNDERSTAND**
+
+The confirmation must respect the one-second wait.
+
+### If YES
+
+- Close the reminder.
+- Continue to the cart.
+- Preserve all selections.
+- Do not automatically add peripherals.
+
+### If NO
+
+Show:
+
+**Just so you know, peripherals aren't cheap!**
+
+A monitor, keyboard, mouse, headphones and microphone can add a significant amount to the total cost of your setup.
+
+It is worth budgeting for these before purchasing your PC so you don't end up with a computer but without the equipment you need.
+
+Show two buttons:
+
+**I NEED HELP FINDING SOME**
+
+**I'LL SORT THEM OUT MYSELF**
+
+### If I NEED HELP FINDING SOME
+
+Open a peripheral recommendation experience for:
+- Monitors.
+- Keyboards.
+- Mice.
+- Headphones.
+- Microphones.
+
+Allow customers to choose their budget, preferred brands and intended use.
+
+Show real products, correct images, verified prices and availability.
+
+Allow customers to add products themselves and see the updated total.
+
+Preserve their original PC selections when returning.
+
+### If I'LL SORT THEM OUT MYSELF
+
+Return to the PC selection and allow them to continue without losing their build.
+
+Do not add peripherals automatically or change the PC's advertised price.
+
+## 19. Australian pricing and retailer comparison
+
+Use Australian retailers and AUD.
+
+Distinguish:
+- Live verified prices.
+- Last-known prices.
+- Estimated prices.
+- Unavailable products.
+- Prices requiring manual verification.
+
+Show retailer names and product links.
+
+Never invent prices or availability.
+
+## 20. Centre Com catalogue import
+
+Preserve the existing genuine Centre Com catalogue.
+
+Create an admin-only import system supporting:
+- Product name.
+- Manufacturer.
+- Model.
+- SKU.
+- Price.
+- Product URL.
+- Image URL.
+- Availability.
+
+Include duplicate detection, validation, preview, error reporting, import history and rollback where supported.
+
+Do not overwrite valid information with missing or unverified data.
+
+## 21. Save and share builds
+
+Allow customers to save, reopen, share and export builds where supported.
+
+Protect customer information.
+
+## 22. Assembly and testing
+
+Preserve existing QTR Assembly & Testing options and prices.
+
+Make the section a working dropdown.
+
+Use the actual maximum applicable assembly option in the fully assembled prebuilt prices.
+
+Keep component-only and fully assembled prices clearly separated.
+
+Never invent service prices or advertise services QTR does not provide.
+
+## 23. Repair services
+
+Create a professional repair-services section using genuine QTR services.
+
+Allow customers to view services, contact QTR and request quotes.
+
+Forms must validate information and provide clear confirmation.
+
+Only implement repair tracking if a real backend supports it.
+
+## 24. Navigation
+
+Provide clear navigation for:
+- Home.
+- PC Builder.
+- Products.
+- Prebuilt PCs.
+- Repair Services.
+- Assembly & Testing.
+- About QTR.
+- Contact.
+
+Preserve useful existing pages.
+
+## 25. Secure administrator login
+
+Preferred authentication:
+- Google OAuth.
+- Explicit authorised-account allowlist.
+
+If OAuth is unavailable, use exactly two login fields:
+1. Email.
+2. Password.
+
+Authorised administrator email:
+
+n10a.yt@gmail.com
+
+Configure the password privately through secure environment settings or platform secrets. Never expose passwords in source code, frontend code, prompts or public configuration.
+
+Implement server-side authentication, secure password hashing where applicable, secure sessions, rate limiting, logout and backend endpoint protection.
+
+Do not rely on hiding admin buttons for security.
+
+## 26. Admin dashboard
+
+Include:
+- Product management.
+- Product imports.
+- Image verification.
+- Price management.
+- PC builder management.
+- Prebuilt PC management.
+- Prebuilt price-monitoring dashboard.
+- Price history.
+- Availability monitoring.
+- Replacement component review.
+- Peripheral catalogue management.
+- Assembly options.
+- Import history.
+- Activity logs.
+
+Allow administrators to see which prebuilt PCs need attention and why.
+
+## 27. Performance
+
+Optimise images, caching, JavaScript, database queries, API requests and mobile performance.
+
+Do not remove functionality to improve performance.
+
+## 28. SEO
+
+Implement unique page titles, descriptions, clean URLs, sitemap, robots configuration, appropriate structured data and descriptive image alt text.
+
+Only advertise locations and services QTR genuinely supports.
+
+## 29. Accessibility
+
+Check colour contrast, keyboard navigation, focus states, form labels, dropdown accessibility, screen-reader compatibility and reduced-motion preferences.
+
+## 30. Privacy and security
+
+Protect customer and administrator information.
+
+Never expose passwords, API keys, private customer information or sensitive backend configuration.
+
+Use appropriate permissions and input validation.
+
+## 31. Backups and data protection
+
+Preserve existing data before major changes.
+
+Back up important information where supported, avoid destructive operations, test migrations and provide recovery options.
+
+## 32. Complete website testing
+
+Test every page and feature, including:
+
+- All navigation.
+- All links and buttons.
+- All forms.
+- Product catalogue.
+- Component filters.
+- PC builder.
+- Compatibility checker.
+- Build saving and sharing.
+- Prebuilt PC selection.
+- Every prebuilt filter.
+- Prebuilt price calculations.
+- Assembly calculations.
+- Automated price-monitoring jobs.
+- Price history.
+- Availability checks.
+- Peripheral reminder in both sections.
+- Peripheral recommendations.
+- Cart.
+- Admin authentication.
+- Product imports.
+- Backend and database operations.
+
+Test desktop, tablet and mobile.
+
+Check console errors, failed network requests, broken links, incorrect images, inaccurate prices, compatibility problems and security issues.
+
+Use automated tests where possible.
+
+Fix the root cause of errors and retest.
+
+Do not claim a feature works unless it has actually been tested.
+
+## 33. Final verification checklist
+
+**Branding**
+- [ ] Exact official QTR main logo.
+- [ ] Exact official QTR favicon.
+- [ ] Correct Intel and AMD logos.
+
+**Catalogue**
+- [ ] Significantly expanded Intel CPU selection.
+- [ ] Expanded AMD CPU selection.
+- [ ] More real products in every category.
+- [ ] Correct flat product images.
+- [ ] No duplicate or invented products.
+
+**PC builder**
+- [ ] Working filters.
+- [ ] Correct compatibility checks.
+- [ ] Accurate totals.
+- [ ] Working save and restore.
+
+**Prebuilt PCs**
+- [ ] Substantially more useful prebuilt configurations.
+- [ ] Real online build research completed.
+- [ ] Every build has a complete parts list.
+- [ ] Every component is compatibility-checked.
+- [ ] Maximum applicable assembly option included in fully assembled pricing.
+- [ ] Component-only and assembled prices clearly separated.
+- [ ] Every build appears in the correct filters.
+- [ ] Price monitoring is scheduled and working.
+- [ ] Price history and last-checked timestamps work.
+- [ ] Unavailable products are flagged.
+- [ ] Replacement parts are compatibility-checked.
+
+**Peripherals**
+- [ ] Reminder works in custom PC builder.
+- [ ] Reminder works in prebuilt PC section.
+- [ ] One-second confirmation works.
+- [ ] NO option displays the extra-cost warning.
+- [ ] Help finding peripherals opens the recommendation experience.
+- [ ] Customer selections are preserved.
+- [ ] No products are added without approval.
+
+**Security and testing**
+- [ ] Admin login works securely.
+- [ ] Unauthorised users are blocked.
+- [ ] Forms and navigation work.
+- [ ] Mobile layout works.
+- [ ] Critical and high-priority bugs are resolved.
+
+## 34. Final report
+
+Provide a report explaining:
+
+1. Everything changed.
+2. New functionality.
+3. Existing functionality preserved.
+4. Number of verified products added per category.
+5. Number of Intel and AMD CPUs added.
+6. Number of prebuilt PCs created.
+7. Online research sources used.
+8. Compatibility test results.
+9. Assembly costs included in each prebuilt configuration.
+10. Price-monitoring schedule and whether it actually runs.
+11. Last price-check timestamps.
+12. Price and availability problems found.
+13. Correct filter classification results.
+14. Peripheral reminder test results.
+15. Admin security test results.
+16. Logo and favicon verification.
+17. Bugs fixed.
+18. Remaining limitations.
+
+**FINAL OBJECTIVE:** Build a complete, professional and functional QTR website with a large genuine component catalogue, accurate product images, advanced PC builder, expanded researched prebuilt PC collection, correct assembly pricing, automated price monitoring, accurate filters, peripheral recommendations and secure administration.

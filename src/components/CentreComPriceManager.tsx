@@ -856,8 +856,19 @@ export const CentreComPriceManager: React.FC = () => {
             <option value="case">Case</option>
             <option value="psu">PSU</option>
             <option value="fans">Fans</option>
+            <option value="thermal_paste">Thermal Paste</option>
+            <option value="rgb_accessory">RGB Accessory</option>
             <option value="accessories">Accessories</option>
             <option value="os">OS</option>
+            <option value="peripherals">Peripherals</option>
+            <option value="monitor">Monitors</option>
+            <option value="keyboard">Keyboards</option>
+            <option value="mouse">Mice</option>
+            <option value="headset">Headsets</option>
+            <option value="microphone">Microphones</option>
+            <option value="mousepad">Mousepads</option>
+            <option value="speakers">Speakers</option>
+            <option value="controller">Controllers</option>
           </select>
 
           <button
@@ -1317,7 +1328,19 @@ export const CentreComPriceManager: React.FC = () => {
                     <option value="case">Case</option>
                     <option value="psu">PSU</option>
                     <option value="fans">Fans</option>
+                    <option value="thermal_paste">Thermal Paste</option>
+                    <option value="rgb_accessory">RGB Accessory</option>
+                    <option value="accessories">Accessories</option>
                     <option value="os">OS</option>
+                    <option value="peripherals">Peripherals</option>
+                    <option value="monitor">Monitor</option>
+                    <option value="keyboard">Keyboard</option>
+                    <option value="mouse">Mouse</option>
+                    <option value="headset">Headset</option>
+                    <option value="microphone">Microphone</option>
+                    <option value="mousepad">Mousepad</option>
+                    <option value="speakers">Speakers</option>
+                    <option value="controller">Controller</option>
                   </select>
                 </div>
               </div>
@@ -1592,8 +1615,19 @@ export const CentreComPriceManager: React.FC = () => {
                     <option value="case">Case</option>
                     <option value="psu">PSU</option>
                     <option value="fans">Fans</option>
+                    <option value="thermal_paste">Thermal Paste</option>
+                    <option value="rgb_accessory">RGB Accessory</option>
                     <option value="accessories">Accessories</option>
                     <option value="os">OS</option>
+                    <option value="peripherals">Peripherals</option>
+                    <option value="monitor">Monitor</option>
+                    <option value="keyboard">Keyboard</option>
+                    <option value="mouse">Mouse</option>
+                    <option value="headset">Headset</option>
+                    <option value="microphone">Microphone</option>
+                    <option value="mousepad">Mousepad</option>
+                    <option value="speakers">Speakers</option>
+                    <option value="controller">Controller</option>
                   </select>
                 </div>
               </div>

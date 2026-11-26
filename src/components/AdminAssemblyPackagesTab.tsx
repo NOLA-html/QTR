@@ -10,15 +10,15 @@ import {
   createDefaultNotificationSettings
 } from '../../server/orderLogic.ts';
 
+import { getAdminAuthHeaders } from '../utils/adminAuthHeaders.ts';
+
 interface AdminAssemblyPackagesTabProps {
-  passkey: string;
   initialPackages?: AssemblyPackage[];
   initialNotificationSettings?: NotificationSettings;
   onSaved: () => void;
 }
 
 export const AdminAssemblyPackagesTab: React.FC<AdminAssemblyPackagesTabProps> = ({
-  passkey,
   initialPackages,
   initialNotificationSettings,
   onSaved
@@ -32,6 +32,7 @@ export const AdminAssemblyPackagesTab: React.FC<AdminAssemblyPackagesTabProps> =
   const [savingPkgs, setSavingPkgs] = useState(false);
   const [savingNotifs, setSavingNotifs] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialPackages && initialPackages.length > 0) {
@@ -46,6 +47,7 @@ export const AdminAssemblyPackagesTab: React.FC<AdminAssemblyPackagesTabProps> =
   }, [initialNotificationSettings]);
 
   const showSuccess = (msg: string) => {
+    setErrorMsg(null);
     setToast(msg);
     setTimeout(() => setToast(null), 4000);
   };
@@ -53,22 +55,23 @@ export const AdminAssemblyPackagesTab: React.FC<AdminAssemblyPackagesTabProps> =
   const handleSavePackages = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingPkgs(true);
+    setErrorMsg(null);
     try {
+      const headers = await getAdminAuthHeaders(true);
       const res = await fetch('/api/admin/assembly-packages', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': passkey
-        },
+        headers,
         body: JSON.stringify({ packages })
       });
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         showSuccess('3-Tier Assembly Packages saved and live across Builder & Checkout.');
         onSaved();
+      } else {
+        setErrorMsg(data.error || 'Failed to save assembly packages.');
       }
-    } catch (err) {
-      console.error('Failed saving assembly packages:', err);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Failed saving assembly packages.');
     } finally {
       setSavingPkgs(false);
     }
@@ -77,22 +80,23 @@ export const AdminAssemblyPackagesTab: React.FC<AdminAssemblyPackagesTabProps> =
   const handleSaveNotifications = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingNotifs(true);
+    setErrorMsg(null);
     try {
+      const headers = await getAdminAuthHeaders(true);
       const res = await fetch('/api/admin/config/notification-settings', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': passkey
-        },
+        headers,
         body: JSON.stringify(notifSettings)
       });
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         showSuccess('Milestone notification automation settings updated.');
         onSaved();
+      } else {
+        setErrorMsg(data.error || 'Failed to save notification settings.');
       }
-    } catch (err) {
-      console.error('Failed saving notification settings:', err);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Failed saving notification settings.');
     } finally {
       setSavingNotifs(false);
     }
@@ -104,6 +108,11 @@ export const AdminAssemblyPackagesTab: React.FC<AdminAssemblyPackagesTabProps> =
         <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs font-bold text-emerald-800">
           <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           <span>{toast}</span>
+        </div>
+      )}
+      {errorMsg && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs font-bold text-rose-800">
+          {errorMsg}
         </div>
       )}
 

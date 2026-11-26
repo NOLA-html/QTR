@@ -14,7 +14,11 @@ import {
   Trash2,
   X,
   Eye,
-  PackageCheck
+  PackageCheck,
+  Sparkles,
+  ShieldCheck,
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 import {
   BuilderPart,
@@ -24,6 +28,11 @@ import {
   isPublishedVerifiedPart,
   isVerifiedNonPlaceholderImage
 } from '../data/builderCatalog.ts';
+import {
+  evaluateBuildCompatibility,
+  CompatibilityReport,
+  SuggestedAlternative
+} from '../utils/compatibility.ts';
 import { Motherboard3DViewer } from './Motherboard3DViewer.tsx';
 import { ProductImageWithPreview } from './ProductImageWithPreview.tsx';
 import { ComponentComparisonModal } from './ComponentComparisonModal.tsx';
@@ -50,6 +59,24 @@ interface PcPartPickerBuilderProps {
 
 const BUILDER_STORAGE_KEY = 'qtr_builder_draft_v2';
 
+const ACCESSORY_CATEGORY_GROUP: BuilderPart['category'][] = [
+  'accessories',
+  'thermal_paste',
+  'rgb_accessory'
+];
+
+const PERIPHERAL_CATEGORY_GROUP: BuilderPart['category'][] = [
+  'peripherals',
+  'monitor',
+  'keyboard',
+  'mouse',
+  'headset',
+  'microphone',
+  'mousepad',
+  'speakers',
+  'controller'
+];
+
 const STEP_LIST: Array<{
   category: BuilderPart['category'];
   label: string;
@@ -64,7 +91,9 @@ const STEP_LIST: Array<{
   { category: 'psu', label: 'Power Supply' },
   { category: 'case', label: 'Case' },
   { category: 'fans', label: 'Additional Fans', optional: true },
-  { category: 'os', label: 'Operating System', optional: true }
+  { category: 'accessories', label: 'Thermal Paste & Accessories', optional: true },
+  { category: 'os', label: 'Operating System', optional: true },
+  { category: 'peripherals', label: 'Monitors & Peripherals', optional: true }
 ];
 
 export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
@@ -158,6 +187,12 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
   const [pendingPlatformSwitch, setPendingPlatformSwitch] = useState<'AMD' | 'Intel' | null>(null);
   const [copiedShare, setCopiedShare] = useState(false);
   const [addedNotice, setAddedNotice] = useState(false);
+  const [aiCompatibility, setAiCompatibility] = useState<{
+    loading: boolean;
+    aiGuidance: string | null;
+    error: string | null;
+    checkedAt: string | null;
+  }>({ loading: false, aiGuidance: null, error: null, checkedAt: null });
 
   // Load strictly published, photo-verified Centre Com products
   useEffect(() => {
@@ -268,99 +303,73 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
     setPendingPlatformSwitch(null);
   };
 
-  // Compatibility engine
-  const compatibilityReport = useMemo(() => {
-    const issues: { level: 'error' | 'warning'; message: string }[] = [];
-    const cpu = selectedParts.cpu;
-    const mobo = selectedParts.motherboard;
-    const ram = selectedParts.ram;
-    const gpu = selectedParts.gpu;
-    const pcCase = selectedParts.case;
-    const cooler = selectedParts.cooler;
-    const psu = selectedParts.psu;
+  // Deterministic hardware compatibility engine (socket, DDR, clearance, radiator, storage, PSU headroom)
+  const compatibilityReport = useMemo<CompatibilityReport>(() => {
+    const suppliedCategories = Object.entries(customerSuppliedParts)
+      .filter(([, data]) => Boolean(data))
+      .map(([cat]) => cat);
+    return evaluateBuildCompatibility(selectedParts, mergedCatalogParts, {
+      suppliedCategories
+    });
+  }, [selectedParts, mergedCatalogParts, customerSuppliedParts]);
 
-    if (cpu && mobo && cpu.socket && mobo.socket && cpu.socket !== mobo.socket) {
-      issues.push({
-        level: 'error',
-        message: `Incompatible socket: ${cpu.name} (${cpu.socket}) does not fit ${mobo.name} (${mobo.socket}).`
+  const runAiCompatibilityCheck = async (silent = false) => {
+    if (!compatibilityReport.hasAnyComponent) return;
+    if (!silent) {
+      setAiCompatibility((prev) => ({ ...prev, loading: true, error: null }));
+    } else {
+      setAiCompatibility((prev) => ({ ...prev, loading: true }));
+    }
+    try {
+      const suppliedCategories = Object.entries(customerSuppliedParts)
+        .filter(([, data]) => Boolean(data))
+        .map(([cat]) => cat);
+      const res = await fetch('/api/compatibility/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedParts, suppliedCategories })
       });
-    }
-    if (mobo && ram && mobo.ramType && ram.ramType && mobo.ramType !== ram.ramType) {
-      issues.push({
-        level: 'error',
-        message: `Incompatible memory: ${mobo.name} requires ${mobo.ramType}, selected ${ram.name} is ${ram.ramType}.`
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'AI compatibility check unavailable');
+      }
+      setAiCompatibility({
+        loading: false,
+        aiGuidance: data.aiGuidance || null,
+        error: null,
+        checkedAt: new Date().toISOString()
       });
+    } catch (err: any) {
+      setAiCompatibility((prev) => ({
+        loading: false,
+        aiGuidance: prev.aiGuidance,
+        error: silent ? null : err?.message || 'AI compatibility review unavailable',
+        checkedAt: prev.checkedAt
+      }));
     }
-    if (pcCase && mobo && pcCase.supportedFormFactors && mobo.formFactor) {
-      if (!pcCase.supportedFormFactors.includes(mobo.formFactor)) {
-        issues.push({
-          level: 'error',
-          message: `Case clearance: ${pcCase.name} does not fit ${mobo.formFactor} motherboards.`
-        });
-      }
-    }
-    if (pcCase && gpu && pcCase.maxGpuLengthMm && gpu.gpuLengthMm && gpu.gpuLengthMm > pcCase.maxGpuLengthMm) {
-      issues.push({
-        level: 'error',
-        message: `Graphics card length: ${gpu.name} (${gpu.gpuLengthMm}mm) exceeds ${pcCase.name} limit (${pcCase.maxGpuLengthMm}mm).`
-      });
-    }
-    if (pcCase && cooler) {
-      if (
-        cooler.coolerType === 'air' &&
-        pcCase.maxCoolerHeightMm &&
-        cooler.coolerHeightMm &&
-        cooler.coolerHeightMm > pcCase.maxCoolerHeightMm
-      ) {
-        issues.push({
-          level: 'error',
-          message: `Cooler height (${cooler.coolerHeightMm}mm) exceeds ${pcCase.name} limit (${pcCase.maxCoolerHeightMm}mm).`
-        });
-      } else if (
-        cooler.coolerType?.startsWith('aio_') &&
-        pcCase.radiatorSupport &&
-        !pcCase.radiatorSupport.includes(cooler.coolerType)
-      ) {
-        issues.push({
-          level: 'warning',
-          message: `Verify radiator mounting clearance in ${pcCase.name} for ${cooler.name}.`
-        });
-      }
-    }
+  };
 
-    const hasAnyComponent = Object.values(selectedParts).some(Boolean);
-    const estimatedWattage = hasAnyComponent
-      ? (cpu?.wattage || 0) +
-        (mobo?.wattage || 0) +
-        (ram?.wattage || 0) +
-        (gpu?.wattage || 0) +
-        (selectedParts.storage?.wattage || 0) +
-        (cooler?.wattage || 0) +
-        (selectedParts.fans?.wattage || 0) +
-        (cpu || mobo || gpu ? 75 : 0)
-      : 0;
-
-    if (psu && psu.wattage && estimatedWattage > 0) {
-      if (estimatedWattage > psu.wattage) {
-        issues.push({
-          level: 'error',
-          message: `Power supply capacity (${psu.wattage}W) is below estimated load (${estimatedWattage}W).`
-        });
-      } else if (estimatedWattage > psu.wattage * 0.85) {
-        issues.push({
-          level: 'warning',
-          message: `Estimated load (${estimatedWattage}W) is close to ${psu.name} capacity (${psu.wattage}W).`
-        });
-      }
+  // Automatically refresh AI compatibility analysis cleanly when 2+ components are selected
+  useEffect(() => {
+    const pickedCount = Object.values(selectedParts).filter(Boolean).length;
+    if (pickedCount < 2) {
+      setAiCompatibility({ loading: false, aiGuidance: null, error: null, checkedAt: null });
+      return;
     }
-
-    return {
-      issues,
-      estimatedWattage,
-      hasAnyComponent,
-      isCompatible: !issues.some((i) => i.level === 'error')
-    };
+    const timer = setTimeout(() => {
+      runAiCompatibilityCheck(true);
+    }, 900);
+    return () => clearTimeout(timer);
   }, [selectedParts]);
+
+  const handleApplyAlternative = (alt: SuggestedAlternative) => {
+    const catalogMatch = mergedCatalogParts.find((p) => p.id === alt.id);
+    if (!catalogMatch) return;
+    setSelectedParts((prev) => ({
+      ...prev,
+      [catalogMatch.category]: catalogMatch
+    }));
+  };
 
   const partsSubtotal = useMemo(() => {
     return Object.entries(selectedParts).reduce((sum, [cat, part]) => {
@@ -495,12 +504,18 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
     });
   };
 
+  const matchesActiveStepCategory = (partCat: BuilderPart['category'], stepCat: BuilderPart['category']) => {
+    if (stepCat === 'accessories') return ACCESSORY_CATEGORY_GROUP.includes(partCat);
+    if (stepCat === 'peripherals') return PERIPHERAL_CATEGORY_GROUP.includes(partCat);
+    return partCat === stepCat;
+  };
+
   // Strict published-only parts list for active category
   const activeParts = useMemo(() => {
     if (activeCategory === 'cpu' && !platform) return [];
 
     let list = mergedCatalogParts.filter(
-      (p) => p.category === activeCategory && isPublishedVerifiedPart(p)
+      (p) => matchesActiveStepCategory(p.category, activeCategory) && isPublishedVerifiedPart(p)
     );
 
     if (activeCategory === 'cpu' && platform) {
@@ -560,7 +575,7 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
 
   const availableBrands = useMemo(() => {
     const all = mergedCatalogParts.filter(
-      (p) => p.category === activeCategory && isPublishedVerifiedPart(p)
+      (p) => matchesActiveStepCategory(p.category, activeCategory) && isPublishedVerifiedPart(p)
     );
     return ['All', ...Array.from(new Set(all.map((p) => p.brand))).filter(Boolean)];
   }, [activeCategory, mergedCatalogParts]);
@@ -768,8 +783,14 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
               <ul className="divide-y divide-slate-100">
                 {STEP_LIST.map((step, idx) => {
                   const isActive = activeCategory === step.category;
-                  const picked = selectedParts[step.category];
-                  const isSupplied = Boolean(customerSuppliedParts[step.category]);
+                  const picked =
+                    selectedParts[step.category] ||
+                    (step.category === 'accessories'
+                      ? ACCESSORY_CATEGORY_GROUP.map((c) => selectedParts[c]).find(Boolean)
+                      : step.category === 'peripherals'
+                      ? PERIPHERAL_CATEGORY_GROUP.map((c) => selectedParts[c]).find(Boolean)
+                      : undefined);
+                  const isSupplied = Boolean(picked && customerSuppliedParts[picked.category]);
                   return (
                     <li key={step.category}>
                       <div
@@ -819,7 +840,7 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
                         {picked && (
                           <button
                             type="button"
-                            onClick={() => handleRemovePart(step.category)}
+                            onClick={() => handleRemovePart(picked.category)}
                             title={`Remove ${step.label}`}
                             aria-label={`Remove ${step.label}`}
                             className="mt-0.5 p-1 text-slate-400 hover:text-rose-600"
@@ -913,22 +934,122 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
               </div>
             </div>
 
-            {/* Compatibility notices when issues exist */}
-            {compatibilityReport.issues.length > 0 && (
-              <div className="mb-5 space-y-2">
-                {compatibilityReport.issues.map((issue, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-start gap-2.5 rounded-md border px-3.5 py-2.5 text-[12px] ${
-                      issue.level === 'error'
-                        ? 'border-rose-200 bg-rose-50 text-rose-900'
-                        : 'border-amber-200 bg-amber-50 text-amber-900'
-                    }`}
-                  >
-                    <AlertTriangle className="mt-0.5 w-4 h-4 shrink-0" />
-                    <span>{issue.message}</span>
+            {/* Automated & AI-Assisted Hardware Compatibility Status */}
+            {compatibilityReport.hasAnyComponent && (
+              <div
+                data-testid="compatibility-status-panel"
+                className={`mb-6 rounded-md border p-4 ${
+                  compatibilityReport.status === 'RED'
+                    ? 'border-rose-300 bg-rose-50/70'
+                    : compatibilityReport.status === 'YELLOW'
+                    ? 'border-amber-300 bg-amber-50/70'
+                    : 'border-emerald-300 bg-emerald-50/70'
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    {compatibilityReport.status === 'RED' ? (
+                      <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+                    ) : compatibilityReport.status === 'YELLOW' ? (
+                      <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    )}
+                    <div>
+                      <span
+                        className={`inline-block text-[12px] font-extrabold uppercase tracking-wide ${
+                          compatibilityReport.status === 'RED'
+                            ? 'text-rose-800'
+                            : compatibilityReport.status === 'YELLOW'
+                            ? 'text-amber-900'
+                            : 'text-emerald-800'
+                        }`}
+                      >
+                        {compatibilityReport.statusLabel}
+                      </span>
+                      <p className="text-[12px] text-slate-700 mt-0.5">{compatibilityReport.summary}</p>
+                    </div>
                   </div>
-                ))}
+
+                  <div className="flex items-center gap-2">
+                    {compatibilityReport.estimatedWattage > 0 && (
+                      <span className="rounded border border-slate-300 bg-white px-2.5 py-1 font-mono text-[11px] font-semibold text-navy">
+                        ~{compatibilityReport.estimatedWattage}W draw · {compatibilityReport.recommendedPsuWattage}W+ PSU
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => runAiCompatibilityCheck(false)}
+                      disabled={aiCompatibility.loading}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-navy/20 bg-white px-3 text-[11.5px] font-semibold text-navy shadow-2xs hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {aiCompatibility.loading ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-brand-blue" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5 text-brand-blue" />
+                      )}
+                      <span>{aiCompatibility.loading ? 'Checking specs...' : 'AI Compatibility Check'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {compatibilityReport.checks.length > 0 && (
+                  <div className="mt-3 grid gap-2 border-t border-slate-200/70 pt-3">
+                    {compatibilityReport.checks.map((chk) => (
+                      <div
+                        key={chk.id}
+                        className={`rounded border px-3 py-2 text-[12px] ${
+                          chk.status === 'fail'
+                            ? 'border-rose-200 bg-white text-rose-900'
+                            : chk.status === 'warning'
+                            ? 'border-amber-200 bg-white text-amber-900'
+                            : 'border-emerald-200 bg-white/80 text-slate-800'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-bold">
+                            [{chk.status === 'fail' ? 'CONFLICT' : chk.status === 'warning' ? 'VERIFY' : 'PASS'}] {chk.category}: {chk.title}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[11.5px] leading-snug text-slate-700">{chk.detail}</p>
+                        {chk.evidence.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {chk.evidence.map((ev, idx) => (
+                              <span key={idx} className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600">
+                                {ev}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {chk.suggestedAlternatives && chk.suggestedAlternatives.length > 0 && (
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2">
+                            <span className="text-[10.5px] font-bold uppercase text-navy">Verified Centre Com alternatives:</span>
+                            {chk.suggestedAlternatives.map((alt) => (
+                              <button
+                                key={alt.id}
+                                type="button"
+                                onClick={() => handleApplyAlternative(alt)}
+                                className="inline-flex items-center gap-1 rounded border border-brand-blue/40 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-brand-blue hover:bg-brand-blue hover:text-white transition"
+                              >
+                                Use {alt.name} ({formatAud(alt.price)})
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {aiCompatibility.aiGuidance && (
+                  <div className="mt-3 rounded border border-slate-200 bg-white p-3 text-[12px] text-slate-700">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-blue">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>QTR AI Technician Compatibility Analysis</span>
+                    </div>
+                    <p className="mt-1.5 whitespace-pre-line leading-relaxed">{aiCompatibility.aiGuidance}</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1201,12 +1322,22 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
               <h2 className="font-heading text-[16px] font-bold text-navy">Build summary</h2>
               <span
                 className={`rounded border px-2 py-0.5 text-[11px] font-semibold ${
-                  isBuildComplete
+                  compatibilityReport.status === 'RED'
+                    ? 'border-rose-200 bg-rose-50 text-rose-700'
+                    : isBuildComplete && compatibilityReport.status === 'GREEN'
                     ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : isBuildComplete
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
                     : 'border-slate-200 bg-slate-50 text-slate-600'
                 }`}
               >
-                {isBuildComplete ? 'Ready to build' : 'Incomplete build'}
+                {compatibilityReport.status === 'RED'
+                  ? 'Incompatible'
+                  : isBuildComplete
+                  ? compatibilityReport.status === 'GREEN'
+                    ? 'Verified Ready'
+                    : 'Needs Verification'
+                  : 'Incomplete build'}
               </span>
             </div>
 
@@ -1217,24 +1348,27 @@ export const PcPartPickerBuilder: React.FC<PcPartPickerBuilderProps> = ({
                 </div>
               ) : (
                 <div className="max-h-[260px] divide-y divide-slate-100 overflow-y-auto px-5 py-2">
-                  {STEP_LIST.map((step) => {
-                    const part = selectedParts[step.category];
-                    if (!part) return null;
-                    const isSupplied = Boolean(customerSuppliedParts[step.category]);
-                    return (
-                      <div key={step.category} className="flex items-start justify-between gap-3 py-2 text-[12px]">
-                        <div className="min-w-0">
-                          <span className="block text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                            {step.label}
+                  {Object.entries(selectedParts)
+                    .filter(([, part]) => Boolean(part))
+                    .map(([catKey, part]) => {
+                      if (!part) return null;
+                      const isSupplied = Boolean(customerSuppliedParts[catKey as BuilderPart['category']]);
+                      const catLabel =
+                        BUILDER_CATEGORIES.find((c) => c.category === catKey)?.label || catKey.toUpperCase();
+                      return (
+                        <div key={catKey} className="flex items-start justify-between gap-3 py-2 text-[12px]">
+                          <div className="min-w-0">
+                            <span className="block text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                              {catLabel}
+                            </span>
+                            <span className="block truncate font-medium text-navy">{part.name}</span>
+                          </div>
+                          <span className="shrink-0 font-semibold text-navy">
+                            {isSupplied ? 'A$0.00' : formatAud(part.price)}
                           </span>
-                          <span className="block truncate font-medium text-navy">{part.name}</span>
                         </div>
-                        <span className="shrink-0 font-semibold text-navy">
-                          {isSupplied ? 'A$0.00' : formatAud(part.price)}
-                        </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               )}
 

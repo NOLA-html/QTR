@@ -147,7 +147,7 @@ export const PeripheralsWarningModal: React.FC<PeripheralsWarningModalProps> = (
 
         {/* Countdown Footer */}
         <div className="border-t border-slate-200 bg-slate-50 px-4 py-4 sm:px-7 sm:py-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <p className="flex items-center gap-2 text-[12.5px] font-semibold text-slate-600" aria-live="polite">
               {!canDismiss ? (
                 <>
@@ -165,12 +165,12 @@ export const PeripheralsWarningModal: React.FC<PeripheralsWarningModalProps> = (
               )}
             </p>
 
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center shrink-0">
               {onCancel && (
                 <button
                   type="button"
                   onClick={onCancel}
-                  className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 font-heading text-[12px] font-bold uppercase tracking-wide text-slate-700 transition hover:bg-slate-100"
+                  className="inline-flex h-11 items-center justify-center whitespace-nowrap rounded-md border border-slate-300 bg-white px-4 font-heading text-[12px] font-bold uppercase tracking-wide text-slate-700 transition hover:bg-slate-100"
                 >
                   NO, I DIDN&apos;T FACTOR IT IN
                 </button>
@@ -180,7 +180,7 @@ export const PeripheralsWarningModal: React.FC<PeripheralsWarningModalProps> = (
                 type="button"
                 onClick={handleConfirm}
                 disabled={!canDismiss}
-                className={`inline-flex h-11 items-center justify-center rounded-md px-5 font-heading text-[12.5px] font-bold uppercase tracking-wide transition ${
+                className={`inline-flex h-11 items-center justify-center whitespace-nowrap rounded-md px-5 font-heading text-[12px] font-bold uppercase tracking-wide transition ${
                   canDismiss
                     ? 'cursor-pointer bg-orange-600 text-white hover:bg-orange-700'
                     : 'cursor-not-allowed bg-slate-300 text-slate-500'

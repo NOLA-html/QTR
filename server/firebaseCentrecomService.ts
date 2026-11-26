@@ -50,6 +50,7 @@ export interface FirebaseProduct {
   createdAt: string;
   updatedAt: string;
   lastErrorCode: string | null;
+  stockStatus?: 'in_stock' | 'low_stock' | 'special_order' | 'unavailable';
   manualVerificationNote?: string;
   manuallyVerifiedBy?: string;
 }
@@ -98,8 +99,12 @@ export function isNonPlaceholderCentreComImageUrl(url: string | null | undefined
     'noimage',
     '/images/parts/'
   ];
-  if (forbidden.some((f) => lower.includes(f))) return false;
-  return lower.startsWith('https://') || lower.startsWith('/images/centrecom/');
+  if (forbidden.some((f) => lower.includes(f)) || lower.endsWith('.svg')) return false;
+  return (
+    lower.startsWith('https://') ||
+    lower.startsWith('/images/centrecom/') ||
+    lower.startsWith('/images/verified/')
+  );
 }
 
 class FirebaseCentrecomService {
@@ -236,6 +241,14 @@ class FirebaseCentrecomService {
     return this.productsCache.get(productId) || null;
   }
 
+  public async deleteProduct(productId: string): Promise<boolean> {
+    const existed = this.productsCache.delete(productId);
+    if (existed) {
+      this.saveLocalCache();
+    }
+    return existed;
+  }
+
   public async saveProduct(product: FirebaseProduct): Promise<FirebaseProduct> {
     if (product.productUrl && !this.isValidCentreComUrl(product.productUrl)) {
       throw new Error(
@@ -258,7 +271,9 @@ class FirebaseCentrecomService {
     this.productsCache.set(normalized.productId, normalized);
     this.saveLocalCache();
 
-    if (this.db) {
+    // Only attempt client-SDK Firestore writes when running in an authenticated browser context;
+    // unauthenticated Node calls would emit Firestore PERMISSION_DENIED logs.
+    if (this.db && typeof window !== 'undefined') {
       try {
         const docRef = doc(this.db, 'products', normalized.productId);
         await setDoc(docRef, normalized, { merge: true });
@@ -375,7 +390,7 @@ class FirebaseCentrecomService {
     }
     this.saveLocalCache();
 
-    if (this.db) {
+    if (this.db && typeof window !== 'undefined') {
       try {
         const docRef = doc(this.db, 'priceHistory', entry.id);
         await setDoc(docRef, entry);

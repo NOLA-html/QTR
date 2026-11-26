@@ -142,6 +142,7 @@ export interface PcOrder {
   };
   finalTotal: number;
   paymentMethod: 'card' | 'bank_transfer' | 'pickup_cash';
+  paymentStatus?: 'Pending' | 'Paid' | 'Refunded';
   status: OrderStage;
   stageHistory: OrderStageEntry[];
   partsList: OrderPartItem[];
@@ -270,18 +271,6 @@ export function buildOrderPartsFromComponents(
   });
 }
 
-const sampleComponents = [
-  { name: 'AMD Ryzen 5 5600X, 6 cores / 12 threads', category: 'CPU', price: 199.0 },
-  { name: 'AMD Wraith Stealth, included with CPU', category: 'CPU Cooler', price: 0.0, included: true },
-  { name: 'ASUS Prime B550M-A WiFi II AM4 Micro-ATX', category: 'Motherboard', price: 129.0 },
-  { name: 'ASUS Dual GeForce RTX 5050 8GB OC GDDR6', category: 'GPU', price: 499.0 },
-  { name: 'G.Skill Trident Z RGB 16GB (2 × 8GB) DDR4-3600 CL16', category: 'RAM', price: 199.0 },
-  { name: 'Biwin Black Opal NV3500 512GB PCIe Gen 3 M.2', category: 'SSD', price: 99.0 },
-  { name: 'Deepcool Matrexx 30 Tempered Glass Micro-ATX', category: 'Case', price: 45.0 },
-  { name: 'ASUS Prime 750W 80+ Bronze', category: 'PSU', price: 79.0 },
-  { name: 'Microsoft Windows 11 Home OEM 64-bit', category: 'Operating System', price: 179.0 }
-];
-
 const initialData: DatabaseSchema = {
   reviews: [
     {
@@ -294,103 +283,11 @@ const initialData: DatabaseSchema = {
       serviceType: 'Computer Repairs & Data Recovery'
     }
   ],
-  repairRequests: [
-    {
-      id: 'rep-sample-1',
-      referenceNumber: 'QTR-REP-1024',
-      customerName: 'Marcus Vance',
-      email: 'm.vance@example.com',
-      phone: '0412 345 678',
-      deviceType: 'Laptop',
-      manufacturerAndModel: 'Dell XPS 15 9520',
-      operatingSystem: 'Windows 11',
-      repairCategory: 'Performance Troubleshooting',
-      problemDescription: 'Laptop thermal throttling heavily during Excel data modeling and occasionally shutting down with fan spinning at max speed.',
-      symptoms: 'Overheating, blue screen error WHEA_UNCORRECTABLE_ERROR',
-      turnsOn: 'Yes',
-      importantDataAffected: 'No',
-      serviceSpeed: 'Express',
-      expressFee: 15,
-      additionalNotes: 'Need it ready before Friday client presentation.',
-      status: 'Assessment & Quote',
-      createdAt: '2026-10-18T10:30:00.000Z',
-      updatedAt: '2026-10-19T14:20:00.000Z',
-      technicianNotes: 'Thermal paste dried out, heatsink dust blockage confirmed. Cleaning and Honeywell PTM7950 repaste approved.'
-    }
-  ],
-  upgradeRequests: [
-    {
-      id: 'upg-sample-1',
-      referenceNumber: 'QTR-UPG-2048',
-      customerName: 'Sarah Jenkins',
-      email: 'sarah.j@example.com',
-      phone: '0488 234 567',
-      deviceType: 'Desktop PC',
-      manufacturerAndModel: 'Custom Intel i5-10400 Desktop',
-      currentSpecifications: 'Intel i5-10400, 16GB DDR4 RAM, 500GB SATA SSD, GTX 1660 Super, 550W PSU',
-      desiredUpgrades: ['RAM Upgrade', 'SSD / Storage Upgrade', 'Graphics Card'],
-      intendedUse: 'Video Editing & 1440p Gaming',
-      budget: '$500–$800',
-      serviceSpeed: 'Regular',
-      expressFee: 0,
-      additionalNotes: 'Looking to edit 4K DaVinci Resolve footage smoothly.',
-      status: 'Under Review',
-      createdAt: '2026-10-19T09:15:00.000Z',
-      updatedAt: '2026-10-19T09:15:00.000Z',
-      technicianNotes: 'Recommended: 32GB 3200MHz RAM kit, 2TB Crucial T500 Gen4 NVMe, RTX 4060 8GB.'
-    }
-  ],
+  repairRequests: [],
+  upgradeRequests: [],
   customPcQuotes: [],
   contactMessages: [],
-  pcOrders: [
-    {
-      id: 'ord-sample-1',
-      referenceNumber: 'QTR-ORD-5120',
-      customerName: 'Marcus Vance',
-      email: 'm.vance@example.com',
-      phone: '0412 345 678',
-      shippingAddress: {
-        addressLine1: '42 Glenhuntly Rd',
-        suburb: 'Elsternwick',
-        state: 'VIC',
-        postcode: '3185'
-      },
-      pcId: 'project-eclipse',
-      pcName: 'Project Eclipse',
-      pcBasePrice: 1428.0,
-      components: sampleComponents,
-      buildService: {
-        id: 'minimum',
-        name: 'Option 1: Minimum Assembly',
-        price: 100.0,
-        description: 'Hardware assembly, connection checks, and basic power-on self-test (POST) only.'
-      },
-      subtotalBeforeDelivery: 1528.0,
-      deliveryMethod: {
-        id: 'normal',
-        name: 'Normal Delivery',
-        price: 25.0,
-        timeframe: '3–5 business days'
-      },
-      finalTotal: 1553.0,
-      paymentMethod: 'card',
-      status: 'All Parts Received',
-      stageHistory: [
-        { stage: 'Order Placed', confirmedAt: '2026-10-20T11:00:00.000Z', confirmedBy: 'Customer Checkout' },
-        { stage: 'Order Confirmed', confirmedAt: '2026-10-20T11:15:00.000Z', confirmedBy: 'Admin' },
-        { stage: 'Parts Procurement', confirmedAt: '2026-10-20T11:20:00.000Z', confirmedBy: 'Admin' },
-        { stage: 'Parts Ordered', confirmedAt: '2026-10-20T12:00:00.000Z', confirmedBy: 'Admin' },
-        { stage: 'All Parts Received', confirmedAt: '2026-10-20T14:30:00.000Z', confirmedBy: 'Admin', note: 'All parts inspected on workshop shelf.' }
-      ],
-      partsList: buildOrderPartsFromComponents('ord-sample-1', sampleComponents, 'Received'),
-      orderTests: createEmptyOrderTests(),
-      notifications: [],
-      estimatedCompletionDate: '2026-10-24',
-      createdAt: '2026-10-20T11:00:00.000Z',
-      updatedAt: '2026-10-20T14:30:00.000Z',
-      technicianNotes: 'All components checked from inventory. Ready for bench assembly.'
-    }
-  ],
+  pcOrders: [],
   shippingConfig: {
     normalPrice: 25.0,
     normalTimeframe: '3–5 business days',
@@ -399,37 +296,12 @@ const initialData: DatabaseSchema = {
   },
   assemblyPackages: DEFAULT_ASSEMBLY_PACKAGES,
   notificationSettings: createDefaultNotificationSettings(),
-  cheaperPriceRequests: [
-    {
-      id: 'cpr-sample-1',
-      referenceNumber: 'QTR-CPR-4091',
-      customerName: 'Marcus Vance',
-      email: 'm.vance@example.com',
-      phone: '0412 345 678',
-      partId: 'cpu-r7-7800x3d',
-      partName: 'AMD Ryzen 7 7800X3D',
-      category: 'cpu',
-      centreComPrice: 599.0,
-      centreComUrl: 'https://www.centrecom.com.au/amd-ryzen-7-7800x3d-8-core-16-threads-processor',
-      competitorName: 'Scorptec',
-      competitorUrl: 'https://www.scorptec.com.au/product/cpu/amd-socket-am5/102521-100-100000910wof',
-      competitorPrice: 579.0,
-      priceDelta: 20.0,
-      isBrandNew: true,
-      isInStock: true,
-      notes: 'In stock at South Melbourne Scorptec branch.',
-      verificationOutcome: 'verified',
-      verificationReason: 'Cheaper price verified against authorized Australian retailer — eligible for review.',
-      status: 'pending',
-      createdAt: '2026-10-21T09:30:00.000Z',
-      updatedAt: '2026-10-21T09:30:00.000Z'
-    }
-  ],
+  cheaperPriceRequests: [],
   customerSuppliedMotherboards: []
 };
 
 function migrateOrderRecord(order: any): PcOrder {
-  const normalizedStatus = normalizeLegacyOrderStage(order.status || 'Order Placed');
+  const normalizedStatus = normalizeLegacyOrderStage(order.status || 'Order received');
   const stageHistory: OrderStageEntry[] = Array.isArray(order.stageHistory) && order.stageHistory.length > 0
     ? order.stageHistory
     : [{ stage: normalizedStatus, confirmedAt: order.createdAt || new Date().toISOString(), confirmedBy: 'System' }];
@@ -438,7 +310,7 @@ function migrateOrderRecord(order: any): PcOrder {
     : buildOrderPartsFromComponents(
         order.id,
         Array.isArray(order.components) ? order.components : [],
-        normalizedStatus === 'All Parts Received' || normalizedStatus === 'Completed' ? 'Received' : 'Not Ordered'
+        normalizedStatus === 'All parts received' || normalizedStatus === 'Completed or collected' ? 'Received' : 'Not Ordered'
       );
   const emptyTests = createEmptyOrderTests();
   const orderTests: OrderTestRecord = order.orderTests
@@ -455,6 +327,7 @@ function migrateOrderRecord(order: any): PcOrder {
 
   return {
     ...order,
+    paymentStatus: order.paymentStatus || 'Pending',
     status: normalizedStatus,
     stageHistory,
     partsList,

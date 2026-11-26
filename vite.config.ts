@@ -7,9 +7,13 @@ export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
     resolve: {
+      dedupe: ['firebase', 'firebase/app', 'firebase/auth', 'firebase/firestore'],
       alias: {
         '@': path.resolve(import.meta.dirname || '.', '.'),
       },
+    },
+    optimizeDeps: {
+      include: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

@@ -41,6 +41,8 @@ import {
 } from './src/utils/pricing.ts';
 import { firebaseCentrecomService } from './server/firebaseCentrecomService.ts';
 import { BUILDER_PARTS } from './src/data/builderCatalog.ts';
+import { verifyAdmin, checkAdminAuth } from './server/adminAuth.ts';
+import { evaluateBuildCompatibility } from './src/utils/compatibility.ts';
 import {
   researchMotherboardSpecs,
   evaluateMotherboardBuildCompatibility
@@ -51,7 +53,14 @@ dotenv.config();
 let aiClient: GoogleGenAI | null = null;
 if (process.env.GEMINI_API_KEY) {
   try {
-    aiClient = new GoogleGenAI();
+    aiClient = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build'
+        }
+      }
+    });
   } catch (e) {
     console.warn('GoogleGenAI init failed, using local diagnostic responder', e);
   }
@@ -62,7 +71,6 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
-const ADMIN_PASSKEY = process.env.ADMIN_PASSKEY || 'qtr2026';
 
 // Initialize DB and bootstrap Firebase Centre Com catalogue
 initDatabase();
@@ -582,23 +590,41 @@ app.post('/api/cheaper-price-requests', (req: Request, res: Response) => {
   }
 });
 
-// GET /api/cheaper-price-requests - Lookup requests by email, ref, or all
-app.get('/api/cheaper-price-requests', (req: Request, res: Response) => {
+// GET /api/cheaper-price-requests - Protected for full listing; scoped email+ref lookup allowed
+app.get('/api/cheaper-price-requests', async (req: Request, res: Response) => {
   try {
-    const { lookup } = req.query;
+    const authResult = await checkAdminAuth(req);
+    const { lookup, email } = req.query;
     const db = readDatabase();
     const list = db.cheaperPriceRequests || [];
 
-    if (lookup && typeof lookup === 'string') {
+    if (authResult.valid) {
+      if (lookup && typeof lookup === 'string') {
+        const q = lookup.trim().toLowerCase();
+        const filtered = list.filter(
+          (r) => r.referenceNumber.toLowerCase() === q || r.email.toLowerCase() === q
+        );
+        res.json({ success: true, requests: filtered });
+        return;
+      }
+      res.json({ success: true, requests: list });
+      return;
+    }
+
+    if (typeof lookup === 'string' && typeof email === 'string' && lookup.trim() && email.trim()) {
       const q = lookup.trim().toLowerCase();
+      const e = email.trim().toLowerCase();
       const filtered = list.filter(
-        (r) => r.referenceNumber.toLowerCase() === q || r.email.toLowerCase() === q
+        (r) => r.email.toLowerCase() === e && (r.referenceNumber.toLowerCase() === q || r.email.toLowerCase() === q)
       );
       res.json({ success: true, requests: filtered });
       return;
     }
 
-    res.json({ success: true, requests: list });
+    res.status(authResult.status || 401).json({
+      success: false,
+      error: authResult.error || 'Administrator authorization required to inspect all price-match requests.'
+    });
   } catch (error) {
     console.error('Error fetching price requests:', error);
     res.status(500).json({ success: false, error: 'Failed to load price requests' });
@@ -608,12 +634,6 @@ app.get('/api/cheaper-price-requests', (req: Request, res: Response) => {
 // ==========================================
 // FIREBASE CENTRE COM PRODUCT PRICING BACKEND
 // ==========================================
-
-// Helper to check admin authorization
-function checkAdminAuth(req: Request): boolean {
-  const adminKey = req.headers['x-admin-key'] || req.query.adminKey;
-  return adminKey === ADMIN_PASSKEY;
-}
 
 // GET /api/catalogue/published - Strict customer-safe published products with verified Centre Com URL & non-box photo
 app.get('/api/catalogue/published', async (req: Request, res: Response) => {
@@ -634,6 +654,7 @@ app.get('/api/catalogue/published', async (req: Request, res: Response) => {
         image: p.imageUrl,
         centreComUrl: p.productUrl,
         specs: p.specifications || {},
+        stockStatus: p.stockStatus || 'in_stock',
         published: p.published,
         imageReviewStatus: p.imageReviewStatus,
         imageSource: p.imageSource,
@@ -647,8 +668,8 @@ app.get('/api/catalogue/published', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/firebase/products - Fetch all Centre Com products (admin / inspection)
-app.get('/api/firebase/products', async (req: Request, res: Response) => {
+// GET /api/firebase/products - Fetch all Centre Com products (Admin only)
+app.get('/api/firebase/products', verifyAdmin, async (req: Request, res: Response) => {
   try {
     const { category, status, publishedOnly } = req.query;
     const filter: { category?: string; status?: string; publishedOnly?: boolean } = {};
@@ -656,12 +677,32 @@ app.get('/api/firebase/products', async (req: Request, res: Response) => {
     if (typeof status === 'string') filter.status = status;
     if (publishedOnly === 'true') filter.publishedOnly = true;
 
+    const allProducts = await firebaseCentrecomService.getAllProducts();
+    const modelCounts = new Map<string, number>();
+    const urlCounts = new Map<string, number>();
+    for (const p of allProducts) {
+      const mKey = `${(p.manufacturer || '').trim().toLowerCase()}::${(p.model || '').trim().toLowerCase()}`;
+      modelCounts.set(mKey, (modelCounts.get(mKey) || 0) + 1);
+      if (p.productUrl) {
+        const uKey = p.productUrl.trim().toLowerCase();
+        urlCounts.set(uKey, (urlCounts.get(uKey) || 0) + 1);
+      }
+    }
+    const duplicateIds = allProducts
+      .filter((p) => {
+        const mKey = `${(p.manufacturer || '').trim().toLowerCase()}::${(p.model || '').trim().toLowerCase()}`;
+        const uKey = (p.productUrl || '').trim().toLowerCase();
+        return (modelCounts.get(mKey) || 0) > 1 || (uKey && (urlCounts.get(uKey) || 0) > 1);
+      })
+      .map((p) => p.productId);
+
     const products = await firebaseCentrecomService.getAllProducts(filter);
     res.json({
       success: true,
       count: products.length,
       retailer: 'Centre Com',
       currency: 'AUD',
+      duplicateIds,
       products
     });
   } catch (error: any) {
@@ -670,8 +711,8 @@ app.get('/api/firebase/products', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/firebase/products/:id - Fetch single product
-app.get('/api/firebase/products/:id', async (req: Request, res: Response) => {
+// GET /api/firebase/products/:id - Fetch single product (Admin only)
+app.get('/api/firebase/products/:id', verifyAdmin, async (req: Request, res: Response) => {
   try {
     const product = await firebaseCentrecomService.getProduct(req.params.id);
     if (!product) {
@@ -686,14 +727,9 @@ app.get('/api/firebase/products/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/firebase/products - Create new product (Admin only)
-app.post('/api/firebase/products', async (req: Request, res: Response) => {
+app.post('/api/firebase/products', verifyAdmin, async (req: Request, res: Response) => {
   try {
-    if (!checkAdminAuth(req)) {
-      res.status(403).json({ success: false, error: 'Unauthorized: Admin access required' });
-      return;
-    }
-
-    const { productId, manufacturer, model, category, productUrl, priceAUD, imageUrl, specifications } = req.body;
+    const { productId, manufacturer, model, category, productUrl, priceAUD, imageUrl, specifications, stockStatus } = req.body;
     if (!productId || !manufacturer || !model || !category || !productUrl) {
       res.status(400).json({ success: false, error: 'productId, manufacturer, model, category, and productUrl are required' });
       return;
@@ -708,7 +744,7 @@ app.post('/api/firebase/products', async (req: Request, res: Response) => {
     }
 
     const now = new Date().toISOString();
-    const price = typeof priceAUD === 'number' ? priceAUD : null;
+    const price = typeof priceAUD === 'number' && !Number.isNaN(priceAUD) ? priceAUD : null;
 
     const newProduct = await firebaseCentrecomService.saveProduct({
       productId: String(productId).trim(),
@@ -725,6 +761,7 @@ app.post('/api/firebase/products', async (req: Request, res: Response) => {
       imageSource: 'unverified',
       isBoxPhoto: false,
       centreComUrlVerified: Boolean(req.body.centreComUrlVerified),
+      stockStatus: stockStatus || 'in_stock',
       specifications: specifications || {},
       status: price !== null ? 'active' : 'needs_review',
       lastCheckedAt: now,
@@ -760,46 +797,80 @@ app.post('/api/firebase/products', async (req: Request, res: Response) => {
 });
 
 // PUT /api/firebase/products/:id - Update product details (Admin only)
-app.put('/api/firebase/products/:id', async (req: Request, res: Response) => {
+app.put('/api/firebase/products/:id', verifyAdmin, async (req: Request, res: Response) => {
   try {
-    if (!checkAdminAuth(req)) {
-      res.status(403).json({ success: false, error: 'Unauthorized: Admin access required' });
-      return;
-    }
-
     const existing = await firebaseCentrecomService.getProduct(req.params.id);
     if (!existing) {
       res.status(404).json({ success: false, error: `Product ${req.params.id} not found` });
       return;
     }
 
-    const { productUrl, imageUrl, specifications, status, manufacturer, model, category } = req.body;
+    const {
+      productUrl,
+      imageUrl,
+      specifications,
+      status,
+      manufacturer,
+      model,
+      category,
+      priceAUD,
+      stockStatus,
+      published,
+      imageReviewStatus,
+      isBoxPhoto,
+      centreComUrlVerified
+    } = req.body;
+
     if (productUrl && !firebaseCentrecomService.isValidCentreComUrl(productUrl)) {
       res.status(400).json({ success: false, error: 'productUrl must point to https://www.centrecom.com.au/' });
       return;
     }
+
+    const numericPrice =
+      typeof priceAUD === 'number' && !Number.isNaN(priceAUD) ? priceAUD : undefined;
 
     const updated = await firebaseCentrecomService.saveProduct({
       ...existing,
       ...(manufacturer ? { manufacturer: String(manufacturer).trim() } : {}),
       ...(model ? { model: String(model).trim() } : {}),
       ...(category ? { category: String(category).trim() } : {}),
-      ...(productUrl ? { productUrl: String(productUrl).trim() } : {}),
+      ...(productUrl !== undefined ? { productUrl: String(productUrl).trim() } : {}),
       ...(imageUrl !== undefined ? { imageUrl: imageUrl ? String(imageUrl).trim() : null } : {}),
+      ...(numericPrice !== undefined ? { priceAUD: numericPrice, lastKnownPriceAUD: numericPrice } : {}),
+      ...(stockStatus ? { stockStatus } : {}),
       ...(specifications ? { specifications } : {}),
       ...(status ? { status } : {}),
+      ...(typeof isBoxPhoto === 'boolean' ? { isBoxPhoto } : {}),
+      ...(typeof centreComUrlVerified === 'boolean' ? { centreComUrlVerified } : {}),
+      ...(imageReviewStatus ? { imageReviewStatus } : {}),
+      ...(typeof published === 'boolean' ? { published } : {}),
       updatedAt: new Date().toISOString()
     });
 
     res.json({ success: true, product: updated });
   } catch (error: any) {
     console.error('Error updating Firebase product:', error);
-    res.status(500).json({ success: false, error: error.message || 'Failed to update product' });
+    res.status(400).json({ success: false, error: error.message || 'Failed to update product' });
   }
 });
 
-// POST /api/firebase/products/:id/refresh - Asynchronously refresh single product price from Centre Com
-app.post('/api/firebase/products/:id/refresh', async (req: Request, res: Response) => {
+// DELETE /api/firebase/products/:id - Delete product (Admin only)
+app.delete('/api/firebase/products/:id', verifyAdmin, async (req: Request, res: Response) => {
+  try {
+    const deleted = await firebaseCentrecomService.deleteProduct(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ success: false, error: `Product ${req.params.id} not found` });
+      return;
+    }
+    res.json({ success: true, message: `Product ${req.params.id} deleted` });
+  } catch (error: any) {
+    console.error('Error deleting Firebase product:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to delete product' });
+  }
+});
+
+// POST /api/firebase/products/:id/refresh - Asynchronously refresh single product price from Centre Com (Admin only)
+app.post('/api/firebase/products/:id/refresh', verifyAdmin, async (req: Request, res: Response) => {
   try {
     const result = await firebaseCentrecomService.refreshProductPrice(req.params.id);
     res.json({
@@ -815,13 +886,8 @@ app.post('/api/firebase/products/:id/refresh', async (req: Request, res: Respons
 });
 
 // POST /api/firebase/products/:id/manual-verify - Administrator manual price verification
-app.post('/api/firebase/products/:id/manual-verify', async (req: Request, res: Response) => {
+app.post('/api/firebase/products/:id/manual-verify', verifyAdmin, async (req: Request, res: Response) => {
   try {
-    if (!checkAdminAuth(req)) {
-      res.status(403).json({ success: false, error: 'Unauthorized: Admin passkey required' });
-      return;
-    }
-
     const { priceAUD, adminNotes, adminUser } = req.body;
     const price = Number(priceAUD);
     if (!price || price <= 0 || isNaN(price)) {
@@ -830,7 +896,7 @@ app.post('/api/firebase/products/:id/manual-verify', async (req: Request, res: R
     }
 
     const notes = adminNotes && typeof adminNotes === 'string' ? adminNotes.trim() : 'Verified against current Centre Com catalogue';
-    const user = adminUser && typeof adminUser === 'string' ? adminUser.trim() : 'Workshop Administrator';
+    const user = (req as any).adminUser?.email || (adminUser && typeof adminUser === 'string' ? adminUser.trim() : 'Workshop Administrator');
 
     const updated = await firebaseCentrecomService.manualVerifyProduct(req.params.id, price, notes, user);
     res.json({
@@ -844,8 +910,8 @@ app.post('/api/firebase/products/:id/manual-verify', async (req: Request, res: R
   }
 });
 
-// POST /api/firebase/products/refresh-batch - Enqueue / run batch refresh of due products (Admin/Cron)
-app.post('/api/firebase/products/refresh-batch', async (req: Request, res: Response) => {
+// POST /api/firebase/products/refresh-batch - Run batch refresh of due products (Admin only)
+app.post('/api/firebase/products/refresh-batch', verifyAdmin, async (req: Request, res: Response) => {
   try {
     const maxBatch = Number(req.body?.maxBatchSize) || 5;
     const batchResult = await firebaseCentrecomService.runScheduledBatchRefresh(maxBatch);
@@ -860,8 +926,8 @@ app.post('/api/firebase/products/refresh-batch', async (req: Request, res: Respo
   }
 });
 
-// GET /api/firebase/products/:id/history - Get price history logs
-app.get('/api/firebase/products/:id/history', async (req: Request, res: Response) => {
+// GET /api/firebase/products/:id/history - Get price history logs (Admin only)
+app.get('/api/firebase/products/:id/history', verifyAdmin, async (req: Request, res: Response) => {
   try {
     const history = await firebaseCentrecomService.getPriceHistory(req.params.id);
     res.json({
@@ -876,11 +942,34 @@ app.get('/api/firebase/products/:id/history', async (req: Request, res: Response
   }
 });
 
-// GET /api/firebase/stats - Pricing engine metrics and health status
-app.get('/api/firebase/stats', (_req: Request, res: Response) => {
+// GET /api/firebase/stats - Pricing engine metrics and health status (Admin only)
+app.get('/api/firebase/stats', verifyAdmin, async (_req: Request, res: Response) => {
   try {
     const stats = firebaseCentrecomService.getStats();
-    res.json({ success: true, stats });
+    const allProducts = await firebaseCentrecomService.getAllProducts();
+    const modelCounts = new Map<string, number>();
+    let missingPhotoCount = 0;
+    let outdatedCount = 0;
+    const now = Date.now();
+    for (const p of allProducts) {
+      const mKey = `${(p.manufacturer || '').trim().toLowerCase()}::${(p.model || '').trim().toLowerCase()}`;
+      modelCounts.set(mKey, (modelCounts.get(mKey) || 0) + 1);
+      if (!p.imageUrl || p.isBoxPhoto || p.imageReviewStatus !== 'verified') missingPhotoCount++;
+      if (!p.lastSuccessfulCheckAt || now - new Date(p.lastSuccessfulCheckAt).getTime() > 48 * 3600 * 1000) outdatedCount++;
+    }
+    const duplicateCount = allProducts.filter((p) => {
+      const mKey = `${(p.manufacturer || '').trim().toLowerCase()}::${(p.model || '').trim().toLowerCase()}`;
+      return (modelCounts.get(mKey) || 0) > 1;
+    }).length;
+    res.json({
+      success: true,
+      stats: {
+        ...stats,
+        duplicateCount,
+        missingPhotoCount,
+        outdatedCount
+      }
+    });
   } catch (error: any) {
     console.error('Error fetching pricing stats:', error);
     res.status(500).json({ success: false, error: error.message || 'Failed to fetch pricing stats' });
@@ -910,12 +999,8 @@ app.post('/api/firebase/recheck-cart', (req: Request, res: Response) => {
 });
 
 // POST /api/firebase/sync-catalog - Admin reseed/sync catalog from master list
-app.post('/api/firebase/sync-catalog', async (req: Request, res: Response) => {
+app.post('/api/firebase/sync-catalog', verifyAdmin, async (_req: Request, res: Response) => {
   try {
-    if (!checkAdminAuth(req)) {
-      res.status(403).json({ success: false, error: 'Unauthorized: Admin passkey required' });
-      return;
-    }
     const seeded = await firebaseCentrecomService.seedCatalogFromParts(BUILDER_PARTS);
     res.json({
       success: true,
@@ -1331,10 +1416,11 @@ app.post('/api/orders', (req: Request, res: Response) => {
           : paymentMethod === 'pickup_cash'
           ? 'pickup_cash'
           : 'card',
-      status: 'Order Placed',
+      paymentStatus: 'Pending',
+      status: 'Order received',
       stageHistory: [
         {
-          stage: 'Order Placed',
+          stage: 'Order received',
           confirmedAt: now,
           confirmedBy: 'Customer Checkout',
           note: `${hasPc ? resolvedPackage.name : 'Parts Only'} • ${deliveryMethodName}`
@@ -1571,83 +1657,167 @@ What type of computer or issue can I assist you with today?`;
   }
 });
 
-// Tracker: POST /api/track (verifies Reference Number + Email for PC orders)
+// AI Compatibility Checker: POST /api/compatibility/analyze
+app.post('/api/compatibility/analyze', async (req: Request, res: Response) => {
+  try {
+    const { selectedParts = {}, suppliedCategories = [] } = req.body || {};
+    const published = await firebaseCentrecomService.getPublishedProducts();
+    const publishedAsBuilderParts = published.map((p) => {
+      const staticMatch = BUILDER_PARTS.find((b) => b.id === p.productId);
+      return {
+        ...(staticMatch || {}),
+        id: p.productId,
+        name: p.model,
+        brand: p.manufacturer,
+        category: p.category as any,
+        platform: (staticMatch?.platform || 'Both') as any,
+        price: p.priceAUD ?? staticMatch?.price ?? 0,
+        image: p.imageUrl || staticMatch?.image || '',
+        wattage: staticMatch?.wattage || Number(p.specifications?.wattage || 0),
+        centreComUrl: p.productUrl,
+        centreComUrlVerified: p.centreComUrlVerified,
+        published: p.published,
+        imageReviewStatus: p.imageReviewStatus,
+        isBoxPhoto: p.isBoxPhoto,
+        specs: p.specifications || staticMatch?.specs || {},
+        description: staticMatch?.description || `${p.manufacturer} ${p.model}`
+      };
+    });
+
+    const combinedCatalog = [
+      ...publishedAsBuilderParts,
+      ...BUILDER_PARTS.filter((b) => !publishedAsBuilderParts.some((p) => p.id === b.id))
+    ];
+
+    const report = evaluateBuildCompatibility(selectedParts, combinedCatalog, {
+      suppliedCategories: Array.isArray(suppliedCategories) ? suppliedCategories : []
+    });
+
+    let aiGuidance: string | null = null;
+    if (aiClient && process.env.GEMINI_API_KEY && report.hasAnyComponent) {
+      try {
+        const selectedSummary = Object.entries(selectedParts)
+          .filter(([, v]) => Boolean(v))
+          .map(([cat, v]: [string, any]) => `${cat.toUpperCase()}: ${v.name} (A$${v.price ?? '?'})`)
+          .join('\n');
+
+        const prompt = `You are QTR's Senior PC Technician reviewing a customer build.
+Overall Compatibility Status: ${report.statusLabel}
+Estimated Peak Draw: ~${report.estimatedWattage}W (Recommended PSU: ${report.recommendedPsuWattage}W)
+Selected Parts:
+${selectedSummary}
+
+Rule Checks Summary:
+${report.checks.map((c) => `- [${c.status.toUpperCase()}] ${c.category}: ${c.detail}`).join('\n')}
+
+Write a clear, honest 3-bullet technician review covering physical clearance/BIOS/cable notes and practical next step advice in plain Australian English. Never invent specs or claim parts fit if flagged warning/fail.`;
+
+        const aiResp = await aiClient.models.generateContent({
+          model: 'gemini-4-hydrogen',
+          contents: prompt
+        });
+        aiGuidance = aiResp.text ? aiResp.text.trim() : null;
+      } catch (err) {
+        console.warn('AI compatibility explanation fallback used:', (err as any)?.message || err);
+      }
+    }
+
+    res.json({
+      success: true,
+      report,
+      aiGuidance:
+        aiGuidance ||
+        `${report.statusLabel}: ${report.summary}${
+          report.estimatedWattage > 0 ? ` Estimated peak draw: ~${report.estimatedWattage}W.` : ''
+        }`
+    });
+  } catch (error: any) {
+    console.error('Compatibility analysis error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Compatibility check failed' });
+  }
+});
+
+// Tracker: POST /api/track (enforces Reference Number + Email verification on all record types)
 app.post('/api/track', (req: Request, res: Response) => {
   try {
     const rawLookup = String(req.body?.referenceNumber || req.body?.lookup || '').trim();
     const rawEmail = String(req.body?.email || '').trim().toLowerCase();
     if (!rawLookup) {
-      res.status(400).json({ success: false, error: 'Reference number or email is required.' });
+      res.status(400).json({ success: false, error: 'Reference number is required.' });
       return;
     }
 
     const lookup = rawLookup.toLowerCase();
     const db = readDatabase();
 
-    // Prioritize PC Order with strict Reference + Email check when email supplied or ref matched
+    const checkOwnership = (
+      recordEmail: string | undefined,
+      referenceNumber: string,
+      payloadBuilder: () => { type: string; record: any }
+    ): boolean => {
+      const normalizedRecordEmail = (recordEmail || '').trim().toLowerCase();
+      if (!rawEmail) {
+        res.status(403).json({
+          success: false,
+          requiresEmailVerification: true,
+          referenceNumber,
+          error: 'Please enter the customer email address used on this order or request to unlock tracking.'
+        });
+        return true;
+      }
+      if (normalizedRecordEmail && rawEmail !== normalizedRecordEmail) {
+        res.status(403).json({
+          success: false,
+          requiresEmailVerification: true,
+          error: 'The email address provided does not match our records for that reference.'
+        });
+        return true;
+      }
+      res.json({ success: true, ...payloadBuilder() });
+      return true;
+    };
+
     const orderMatch = db.pcOrders.find(
-      (o) =>
-        (o.referenceNumber.toLowerCase() === lookup && (!rawEmail || o.email.toLowerCase() === rawEmail)) ||
-        (rawEmail && o.email.toLowerCase() === rawEmail && o.referenceNumber.toLowerCase() === lookup)
+      (o) => o.referenceNumber.toLowerCase() === lookup || (rawEmail && o.email.toLowerCase() === rawEmail && o.email.toLowerCase() === lookup)
     );
-    const orderByRefOnly = !orderMatch
-      ? db.pcOrders.find((o) => o.referenceNumber.toLowerCase() === lookup)
-      : undefined;
-
-    if (orderByRefOnly && !rawEmail) {
-      res.status(403).json({
-        success: false,
-        requiresEmailVerification: true,
-        error: 'Please enter the customer email address used on this order to view live build & delivery tracking.'
-      });
-      return;
-    }
-
-    if (orderByRefOnly && rawEmail && orderByRefOnly.email.toLowerCase() !== rawEmail) {
-      res.status(403).json({
-        success: false,
-        requiresEmailVerification: true,
-        error: 'The email address provided does not match this order reference.'
-      });
-      return;
-    }
-
     if (orderMatch) {
-      res.json({
-        success: true,
+      checkOwnership(orderMatch.email, orderMatch.referenceNumber, () => ({
         type: 'pc_order',
         record: buildCustomerSafeOrderDto(orderMatch)
-      });
+      }));
       return;
     }
 
     const repairMatch = db.repairRequests.find(
-      (r) =>
-        (r.referenceNumber.toLowerCase() === lookup || r.email.toLowerCase() === lookup) &&
-        (!rawEmail || r.email.toLowerCase() === rawEmail)
+      (r) => r.referenceNumber.toLowerCase() === lookup || (rawEmail && r.email.toLowerCase() === rawEmail && r.email.toLowerCase() === lookup)
     );
     if (repairMatch) {
-      res.json({ success: true, type: 'repair', record: repairMatch });
+      checkOwnership(repairMatch.email, repairMatch.referenceNumber, () => ({
+        type: 'repair',
+        record: repairMatch
+      }));
       return;
     }
 
     const upgradeMatch = db.upgradeRequests.find(
-      (u) =>
-        (u.referenceNumber.toLowerCase() === lookup || u.email.toLowerCase() === lookup) &&
-        (!rawEmail || u.email.toLowerCase() === rawEmail)
+      (u) => u.referenceNumber.toLowerCase() === lookup || (rawEmail && u.email.toLowerCase() === rawEmail && u.email.toLowerCase() === lookup)
     );
     if (upgradeMatch) {
-      res.json({ success: true, type: 'upgrade', record: upgradeMatch });
+      checkOwnership(upgradeMatch.email, upgradeMatch.referenceNumber, () => ({
+        type: 'upgrade',
+        record: upgradeMatch
+      }));
       return;
     }
 
     const pcMatch = db.customPcQuotes.find(
-      (p) =>
-        (p.referenceNumber.toLowerCase() === lookup || p.email.toLowerCase() === lookup) &&
-        (!rawEmail || p.email.toLowerCase() === rawEmail)
+      (p) => p.referenceNumber.toLowerCase() === lookup || (rawEmail && p.email.toLowerCase() === rawEmail && p.email.toLowerCase() === lookup)
     );
     if (pcMatch) {
-      res.json({ success: true, type: 'custom_pc', record: pcMatch });
+      checkOwnership(pcMatch.email, pcMatch.referenceNumber, () => ({
+        type: 'custom_pc',
+        record: pcMatch
+      }));
       return;
     }
 
@@ -1661,7 +1831,7 @@ app.post('/api/track', (req: Request, res: Response) => {
   }
 });
 
-// Tracker: GET /api/track/:lookup (searches by reference number or email, sanitizes PC order PII)
+// Tracker: GET /api/track/:lookup (requires matching email query param across all record types)
 app.get('/api/track/:lookup', (req: Request, res: Response) => {
   try {
     const rawLookup = (req.params.lookup || '').trim();
@@ -1674,11 +1844,46 @@ app.get('/api/track/:lookup', (req: Request, res: Response) => {
     const lookup = rawLookup.toLowerCase();
     const db = readDatabase();
 
+    const respondWithOwnership = (
+      recordEmail: string | undefined,
+      referenceNumber: string,
+      type: string,
+      record: any
+    ) => {
+      const normalizedRecordEmail = (recordEmail || '').trim().toLowerCase();
+      if (!rawEmail) {
+        res.status(403).json({
+          success: false,
+          requiresEmailVerification: true,
+          referenceNumber,
+          error: 'Enter the customer email address used when lodging this request to unlock live tracking.'
+        });
+        return;
+      }
+      if (normalizedRecordEmail && normalizedRecordEmail !== rawEmail) {
+        res.status(403).json({
+          success: false,
+          requiresEmailVerification: true,
+          error: 'Email does not match the customer email on file for this reference.'
+        });
+        return;
+      }
+      res.json({ success: true, type, record });
+    };
+
+    const orderMatch = db.pcOrders.find(
+      (o) => o.referenceNumber.toLowerCase() === lookup || o.email.toLowerCase() === lookup
+    );
+    if (orderMatch) {
+      respondWithOwnership(orderMatch.email, orderMatch.referenceNumber, 'pc_order', buildCustomerSafeOrderDto(orderMatch));
+      return;
+    }
+
     const repairMatch = db.repairRequests.find(
       (r) => r.referenceNumber.toLowerCase() === lookup || r.email.toLowerCase() === lookup
     );
     if (repairMatch) {
-      res.json({ success: true, type: 'repair', record: repairMatch });
+      respondWithOwnership(repairMatch.email, repairMatch.referenceNumber, 'repair', repairMatch);
       return;
     }
 
@@ -1686,7 +1891,7 @@ app.get('/api/track/:lookup', (req: Request, res: Response) => {
       (u) => u.referenceNumber.toLowerCase() === lookup || u.email.toLowerCase() === lookup
     );
     if (upgradeMatch) {
-      res.json({ success: true, type: 'upgrade', record: upgradeMatch });
+      respondWithOwnership(upgradeMatch.email, upgradeMatch.referenceNumber, 'upgrade', upgradeMatch);
       return;
     }
 
@@ -1694,42 +1899,13 @@ app.get('/api/track/:lookup', (req: Request, res: Response) => {
       (p) => p.referenceNumber.toLowerCase() === lookup || p.email.toLowerCase() === lookup
     );
     if (pcMatch) {
-      res.json({ success: true, type: 'custom_pc', record: pcMatch });
-      return;
-    }
-
-    const orderMatch = db.pcOrders.find(
-      (o) => o.referenceNumber.toLowerCase() === lookup || o.email.toLowerCase() === lookup
-    );
-    if (orderMatch) {
-      if (rawEmail && orderMatch.email.toLowerCase() !== rawEmail) {
-        res.status(403).json({
-          success: false,
-          requiresEmailVerification: true,
-          error: 'Email does not match the customer email on file for this order.'
-        });
-        return;
-      }
-      if (!rawEmail && !lookup.includes('@')) {
-        res.status(403).json({
-          success: false,
-          requiresEmailVerification: true,
-          referenceNumber: orderMatch.referenceNumber,
-          error: 'Enter the order email address to unlock your order tracking details.'
-        });
-        return;
-      }
-      res.json({
-        success: true,
-        type: 'pc_order',
-        record: buildCustomerSafeOrderDto(orderMatch)
-      });
+      respondWithOwnership(pcMatch.email, pcMatch.referenceNumber, 'custom_pc', pcMatch);
       return;
     }
 
     res.status(404).json({
       success: false,
-      error: `No service request or PC order found for "${rawLookup}". Please verify your reference number (e.g. QTR-REP-1024, QTR-ORD-5120) or email.`
+      error: `No service request or PC order found for "${rawLookup}". Verify your QTR reference number and email address.`
     });
   } catch (error) {
     console.error('Error tracking request:', error);
@@ -1738,29 +1914,57 @@ app.get('/api/track/:lookup', (req: Request, res: Response) => {
 });
 
 // ==========================================
-// ADMIN MANAGEMENT ROUTES (Protected by passkey)
+// ADMIN MANAGEMENT ROUTES (Verified Google Admin Only)
 // ==========================================
-
-function verifyAdmin(req: Request, res: Response, next: () => void) {
-  const authHeader = req.headers['x-admin-key'] || req.query.adminKey;
-  if (!authHeader || authHeader !== ADMIN_PASSKEY) {
-    res.status(401).json({ success: false, error: 'Unauthorized: Invalid admin credentials' });
-    return;
-  }
-  next();
-}
 
 app.get('/api/admin/data', verifyAdmin, (_req: Request, res: Response) => {
   try {
     const db = readDatabase();
+    const orders = db.pcOrders || [];
+    const activeOrders = orders.filter(
+      (o) => o.status !== 'Completed or collected' && o.status !== 'Cancelled'
+    ).length;
+    const waitingForParts = orders.filter(
+      (o) =>
+        o.status === 'Order received' ||
+        o.status === 'Order confirmed' ||
+        o.status === 'Parts being sourced'
+    ).length;
+    const partsOrdered = orders.filter(
+      (o) => o.status === 'Waiting for parts'
+    ).length;
+    const partsReceived = orders.filter((o) => o.status === 'All parts received').length;
+    const assembling = orders.filter(
+      (o) => o.status === 'Assembly started' || o.status === 'PC assembly completed'
+    ).length;
+    const testing = orders.filter(
+      (o) =>
+        o.status === 'Post-build testing' ||
+        o.status === 'Stress testing' ||
+        o.status === 'Gaming FPS testing' ||
+        o.status === 'Final quality check'
+    ).length;
+    const readyForDispatch = orders.filter(
+      (o) => o.status === 'Ready for collection or dispatch'
+    ).length;
+    const completedOrders = orders.filter((o) => o.status === 'Completed or collected').length;
+
     res.json({
       success: true,
       data: db,
       metrics: {
+        activeOrders,
+        waitingForParts,
+        partsOrdered,
+        partsReceived,
+        assembling,
+        testing,
+        readyForDispatch,
+        completedOrders,
         totalRepairs: db.repairRequests.length,
         totalUpgrades: db.upgradeRequests.length,
         totalCustomPc: db.customPcQuotes.length,
-        totalOrders: db.pcOrders.length,
+        totalOrders: orders.length,
         totalReviews: db.reviews.length,
         pendingReviewsCount: db.reviews.filter((r) => !r.approved).length,
         totalMessages: db.contactMessages.length,
@@ -1771,6 +1975,196 @@ app.get('/api/admin/data', verifyAdmin, (_req: Request, res: Response) => {
   } catch (error) {
     console.error('Admin data error:', error);
     res.status(500).json({ success: false, error: 'Failed to load admin data' });
+  }
+});
+
+// Unified Real Customer Records derived from orders, repairs, upgrades, quotes, messages
+app.get('/api/admin/customers', verifyAdmin, (_req: Request, res: Response) => {
+  try {
+    const db = readDatabase();
+    const map = new Map<string, any>();
+
+    const ensureCustomer = (rawEmail?: string, rawName?: string, rawPhone?: string, timestamp?: string) => {
+      const email = (rawEmail || '').trim().toLowerCase();
+      if (!email || !email.includes('@')) return null;
+      if (!map.has(email)) {
+        map.set(email, {
+          email,
+          name: (rawName || '').trim() || email,
+          phone: (rawPhone || '').trim() || '',
+          totalOrders: 0,
+          totalSpentAUD: 0,
+          totalRepairs: 0,
+          totalUpgrades: 0,
+          totalQuotes: 0,
+          totalMessages: 0,
+          lastActivityAt: timestamp || '',
+          references: [] as Array<{ referenceNumber: string; summary: string; type: string; status: string }>
+        });
+      }
+      const c = map.get(email);
+      if (rawName && rawName.trim() && c.name === email) c.name = rawName.trim();
+      if (rawPhone && rawPhone.trim() && !c.phone) c.phone = rawPhone.trim();
+      if (timestamp && (!c.lastActivityAt || timestamp > c.lastActivityAt)) {
+        c.lastActivityAt = timestamp;
+      }
+      return c;
+    };
+
+    for (const o of db.pcOrders || []) {
+      const c = ensureCustomer(o.email, o.customerName, o.phone, o.updatedAt || o.createdAt);
+      if (!c) continue;
+      c.totalOrders += 1;
+      if (o.status !== 'Cancelled') c.totalSpentAUD += Number(o.finalTotal || 0);
+      c.references.push({
+        referenceNumber: o.referenceNumber,
+        summary: `${o.pcName} ($${Number(o.finalTotal || 0).toFixed(2)})`,
+        type: 'PC Order',
+        status: o.status
+      });
+    }
+    for (const r of db.repairRequests || []) {
+      const c = ensureCustomer(r.email, r.customerName, r.phone, r.updatedAt || r.createdAt);
+      if (!c) continue;
+      c.totalRepairs += 1;
+      c.references.push({
+        referenceNumber: r.referenceNumber,
+        summary: `${r.deviceType}: ${r.repairCategory}`,
+        type: 'Repair',
+        status: r.status
+      });
+    }
+    for (const u of db.upgradeRequests || []) {
+      const c = ensureCustomer(u.email, u.customerName, u.phone, u.updatedAt || u.createdAt);
+      if (!c) continue;
+      c.totalUpgrades += 1;
+      c.references.push({
+        referenceNumber: u.referenceNumber,
+        summary: `${u.deviceType}: ${u.manufacturerAndModel}`,
+        type: 'Upgrade',
+        status: u.status
+      });
+    }
+    for (const q of db.customPcQuotes || []) {
+      const c = ensureCustomer(q.email, q.customerName, q.phone, q.createdAt);
+      if (!c) continue;
+      c.totalQuotes += 1;
+      c.references.push({
+        referenceNumber: q.referenceNumber,
+        summary: q.prebuiltName || q.buildType,
+        type: 'Quote',
+        status: q.status
+      });
+    }
+    for (const m of db.contactMessages || []) {
+      const c = ensureCustomer(m.email, m.name, m.phone, m.createdAt);
+      if (!c) continue;
+      c.totalMessages += 1;
+      c.references.push({
+        referenceNumber: m.id,
+        summary: m.subject || 'Enquiry message',
+        type: 'Message',
+        status: m.replied ? 'Replied' : 'Open'
+      });
+    }
+
+    const customers = Array.from(map.values()).sort((a, b) =>
+      String(b.lastActivityAt || '').localeCompare(String(a.lastActivityAt || ''))
+    );
+
+    res.json({ success: true, customers, count: customers.length });
+  } catch (error: any) {
+    console.error('Error building customer directory:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to load customers' });
+  }
+});
+
+// Update customer contact details across linked records (Admin only)
+app.put('/api/admin/customers/:email', verifyAdmin, (req: Request, res: Response) => {
+  try {
+    const targetEmail = decodeURIComponent(req.params.email || '').trim().toLowerCase();
+    const { name, phone } = req.body || {};
+    if (!targetEmail) {
+      res.status(400).json({ success: false, error: 'Customer email is required' });
+      return;
+    }
+
+    const db = readDatabase();
+    let updatedCount = 0;
+
+    for (const o of db.pcOrders || []) {
+      if ((o.email || '').trim().toLowerCase() === targetEmail) {
+        if (name) o.customerName = String(name).trim();
+        if (phone !== undefined) o.phone = String(phone).trim();
+        updatedCount++;
+      }
+    }
+    for (const r of db.repairRequests || []) {
+      if ((r.email || '').trim().toLowerCase() === targetEmail) {
+        if (name) r.customerName = String(name).trim();
+        if (phone !== undefined) r.phone = String(phone).trim();
+        updatedCount++;
+      }
+    }
+    for (const u of db.upgradeRequests || []) {
+      if ((u.email || '').trim().toLowerCase() === targetEmail) {
+        if (name) u.customerName = String(name).trim();
+        if (phone !== undefined) u.phone = String(phone).trim();
+        updatedCount++;
+      }
+    }
+    for (const q of db.customPcQuotes || []) {
+      if ((q.email || '').trim().toLowerCase() === targetEmail) {
+        if (name) q.customerName = String(name).trim();
+        if (phone !== undefined) q.phone = String(phone).trim();
+        updatedCount++;
+      }
+    }
+    for (const m of db.contactMessages || []) {
+      if ((m.email || '').trim().toLowerCase() === targetEmail) {
+        if (name) m.name = String(name).trim();
+        if (phone !== undefined) m.phone = String(phone).trim();
+        updatedCount++;
+      }
+    }
+
+    writeDatabase(db);
+    res.json({ success: true, updatedCount, email: targetEmail });
+  } catch (error: any) {
+    console.error('Error updating customer contact:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to update customer' });
+  }
+});
+
+// Delete all records belonging to a specific customer email (Admin only, test/flagged purge)
+app.delete('/api/admin/customers/:email/records', verifyAdmin, (req: Request, res: Response) => {
+  try {
+    const targetEmail = decodeURIComponent(req.params.email || '').trim().toLowerCase();
+    if (!targetEmail) {
+      res.status(400).json({ success: false, error: 'Customer email is required' });
+      return;
+    }
+
+    const db = readDatabase();
+    let removedCount = 0;
+    const keepIfOtherEmail = (e?: string) => {
+      const match = (e || '').trim().toLowerCase() === targetEmail;
+      if (match) removedCount++;
+      return !match;
+    };
+
+    db.pcOrders = (db.pcOrders || []).filter((o) => keepIfOtherEmail(o.email));
+    db.repairRequests = (db.repairRequests || []).filter((r) => keepIfOtherEmail(r.email));
+    db.upgradeRequests = (db.upgradeRequests || []).filter((u) => keepIfOtherEmail(u.email));
+    db.customPcQuotes = (db.customPcQuotes || []).filter((q) => keepIfOtherEmail(q.email));
+    db.contactMessages = (db.contactMessages || []).filter((m) => keepIfOtherEmail(m.email));
+    db.cheaperPriceRequests = (db.cheaperPriceRequests || []).filter((c) => keepIfOtherEmail(c.email));
+
+    writeDatabase(db);
+    res.json({ success: true, removedCount, email: targetEmail });
+  } catch (error: any) {
+    console.error('Error removing customer records:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to remove customer records' });
   }
 });
 
@@ -1870,7 +2264,7 @@ app.post('/api/admin/orders/:id/status', verifyAdmin, (req: Request, res: Respon
       order.stageHistory.push({
         stage: status,
         confirmedAt: now,
-        confirmedBy: 'Admin',
+        confirmedBy: (req as any).adminUser?.email || 'Admin',
         note: technicianNotes || undefined
       });
     }
@@ -1885,11 +2279,20 @@ app.post('/api/admin/orders/:id/status', verifyAdmin, (req: Request, res: Respon
   }
 });
 
-// PUT /api/admin/orders/:id/stage - Explicit 13-stage advancement + tracking + auto-notification option
+// PUT /api/admin/orders/:id/stage - Explicit 13-stage advancement + tracking + paymentStatus + auto-notification option
 app.put('/api/admin/orders/:id/stage', verifyAdmin, (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { stage, note, confirmedBy, estimatedCompletionDate, customerTracking, technicianNotes, sendNotification } = req.body;
+    const {
+      stage,
+      paymentStatus,
+      note,
+      confirmedBy,
+      estimatedCompletionDate,
+      customerTracking,
+      technicianNotes,
+      sendNotification
+    } = req.body;
     const db = readDatabase();
     const order = db.pcOrders.find((o) => o.id === id);
     if (!order) {
@@ -1905,11 +2308,14 @@ app.put('/api/admin/orders/:id/stage', verifyAdmin, (req: Request, res: Response
 
     const now = new Date().toISOString();
     order.status = stage as OrderStage;
+    if (paymentStatus === 'Pending' || paymentStatus === 'Paid' || paymentStatus === 'Refunded') {
+      order.paymentStatus = paymentStatus;
+    }
     order.stageHistory = order.stageHistory || [];
     order.stageHistory.push({
       stage: stage as OrderStage,
       confirmedAt: now,
-      confirmedBy: confirmedBy ? String(confirmedBy).trim() : 'Workshop Admin',
+      confirmedBy: confirmedBy ? String(confirmedBy).trim() : (req as any).adminUser?.email || 'Workshop Admin',
       note: note ? String(note).trim() : undefined
     });
     if (estimatedCompletionDate !== undefined) {
@@ -1920,7 +2326,9 @@ app.put('/api/admin/orders/:id/stage', verifyAdmin, (req: Request, res: Response
         carrier: String(customerTracking.carrier || ''),
         trackingNumber: String(customerTracking.trackingNumber || ''),
         trackingUrl: customerTracking.trackingUrl ? String(customerTracking.trackingUrl) : undefined,
-        dispatchedAt: customerTracking.dispatchedAt || (stage === 'Dispatched' ? now : undefined)
+        dispatchedAt:
+          customerTracking.dispatchedAt ||
+          (stage === 'Ready for collection or dispatch' || stage === 'Completed or collected' ? now : undefined)
       };
     }
     if (technicianNotes !== undefined) {
@@ -1930,13 +2338,13 @@ app.put('/api/admin/orders/:id/stage', verifyAdmin, (req: Request, res: Response
 
     // Auto-trigger notification if enabled or explicitly requested
     const stageToEventMap: Partial<Record<OrderStage, NotificationEventKey>> = {
-      'Order Confirmed': 'order_confirmed',
-      'Parts Ordered': 'parts_ordered',
-      'All Parts Received': 'parts_received',
-      'In Assembly': 'assembly_started',
-      'Final Quality Check': 'testing_completed',
-      'Ready for Collection': 'ready_for_collection',
-      'Dispatched': 'dispatched'
+      'Order confirmed': 'order_confirmed',
+      'Parts being sourced': 'parts_ordered',
+      'All parts received': 'parts_received',
+      'Assembly started': 'assembly_started',
+      'Final quality check': 'testing_completed',
+      'Ready for collection or dispatch': 'ready_for_collection',
+      'Completed or collected': 'dispatched'
     };
     const milestoneKey = stageToEventMap[stage as OrderStage];
     const shouldAutoNotify =
@@ -2189,7 +2597,7 @@ app.get('/api/admin/parts-procurement', verifyAdmin, (_req: Request, res: Respon
   try {
     const db = readDatabase();
     const queue = db.pcOrders
-      .filter((o) => o.status !== 'Completed' && o.status !== 'Cancelled')
+      .filter((o) => o.status !== 'Completed or collected' && o.status !== 'Cancelled')
       .flatMap((order) =>
         (order.partsList || []).map((part) => ({
           orderId: order.id,

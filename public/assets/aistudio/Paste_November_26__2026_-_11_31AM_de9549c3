@@ -1,0 +1,1209 @@
+QTR – COMPLETE WEBSITE DEVELOPMENT AND FUNCTIONAL PC BUILDER MASTER PROMPT
+I want you to develop and complete my QTR (Quick Tech Repairs) website inside my existing Google AI Studio project.
+This is a full development task, not just a visual mockup.
+I need a fully functional website with a real PC parts catalogue, custom PC builder, AI-assisted compatibility checker, administrator dashboard, Google authentication, customer accounts and order tracking.
+Do not just create the appearance of these features. Implement their actual functionality, database connections, backend operations and security.
+1. IMPORTANT PROJECT PROTECTION
+My existing projects must remain untouched.
+Existing website for visual reference
+https://ab-qtr.base44.app/
+Use this website to recreate the original QTR design and functionality as accurately as possible.
+Existing second website
+https://qtr-ecru.vercel.app/
+This website and its existing GitHub repository must remain unchanged.
+Strict protection rules
+Do not edit, delete or overwrite files in my existing GitHub repository.
+Do not create commits, branches or pushes to my existing repository.
+Do not change GitHub settings, secrets or workflows.
+Do not modify my existing Vercel project or deployment.
+Do not change the second website's code, design, content, database, favicon, logo or functionality.
+Do not connect Google AI Studio to my existing repository with write access.
+Do not overwrite my existing work.
+All development must happen inside my current Google AI Studio project.
+Do not use Base44 as the development platform. The Base44 website is only a visual and functional reference.
+2. RECREATE THE ORIGINAL QTR WEBSITE
+Before adding new features, recreate the existing website as accurately as possible.
+Preserve:
+Layout.
+Colours.
+Fonts.
+Spacing.
+Header and navigation.
+Buttons.
+Cards.
+Sections.
+Backgrounds.
+Images and icons.
+Footer.
+Mobile and desktop layouts.
+Existing functionality.
+Do not redesign unrelated sections or remove existing working features.
+Compare the recreated website against the original on desktop, tablet and mobile.
+Official QTR logo
+Use my existing official QTR logo.
+Do not invent a new logo, substitute a generic icon or use typed text in its place.
+If the original image reference is inaccessible, ask me to upload the actual logo file.
+Favicon
+Retrieve the exact existing favicon from:
+https://qtr-ecru.vercel.app/
+You may inspect this website in read-only mode to retrieve its favicon.
+Copy the favicon into the new Google AI Studio project without changing the original website.
+Never invent a replacement favicon.
+3. REMOVE FAKE PEOPLE AND DEMONSTRATION DATA
+Remove fabricated:
+Customers.
+Customer accounts.
+Administrator accounts.
+Reviews and testimonials.
+Staff profiles.
+Customer photographs.
+Fake orders.
+Sample purchases.
+Invented statistics.
+Demonstration activity presented as real.
+Do not replace them with AI-generated people or fake photographs.
+Only show genuine customer information that has actually been provided.
+Inspect existing database records before deleting anything. Remove confirmed test records but preserve genuine customer information and orders.
+If unsure whether a record is genuine, flag it for administrator review.
+Never display invented customer counts, revenue, orders or reviews.
+4. SECURE GOOGLE ADMIN LOGIN
+I need a proper private administrator dashboard.
+Use Google Sign-In, preferably through Firebase Authentication if compatible with the project.
+Requirements:
+Authenticate through Google's official login process.
+Link administrator access to my specific Google account.
+Only my authorised Google account receives administrator permissions.
+Other Google accounts must not automatically become administrators.
+Do not allow the first person to sign in to become an administrator.
+Protect all administrator pages and backend operations.
+Use proper server-side authentication and authorisation.
+Do not expose passwords, secret keys or authentication tokens.
+Never store passwords in plain text.
+Never hardcode secret credentials in frontend code.
+I have not supplied my administrator email address yet.
+Ask me for the Google email address that should receive administrator access. Do not guess it.
+5. THE MOST IMPORTANT FEATURE – FULLY WORKING PC BUILDER
+My PC builder currently has no proper selection of parts.
+I need you to fix it completely.
+The PC builder must contain real, selectable Centre Com components. It must not be an empty interface or a demonstration with made-up products.
+Before development, inspect these websites:
+PCPartPicker
+https://pcpartpicker.com/
+Centre Com Custom PC Builder
+https://www.centrecom.com.au/buildpc
+Study both websites.
+Use PCPartPicker as a reference for:
+PC component categories.
+Component selection.
+Compatibility checking.
+Build summaries.
+Warnings and errors.
+Component filtering.
+Total price calculations.
+Build organisation.
+Use Centre Com's custom PC builder as a reference for:
+Centre Com component categories.
+Product selection.
+Local Australian product availability.
+PC building workflow.
+How customers select parts for a complete computer.
+Do not copy their proprietary code or pretend to have access to their private systems.
+Centre Com must be the exclusive retailer and product source for the QTR product catalogue.
+PCPartPicker is a reference for builder functionality and compatibility behaviour, not an alternative retailer or source of product prices.
+The QTR PC builder must work directly inside my website. Customers should not have to leave QTR to select their components.
+5A. Product categories
+Include these categories:
+Main components
+AMD Ryzen 3, 5, 7 and 9 processors.
+Intel Core i3, i5, i7 and i9 processors.
+NVIDIA GeForce RTX graphics cards.
+AMD Radeon RX graphics cards.
+AMD and Intel motherboards.
+DDR4 RAM.
+DDR5 RAM.
+NVMe SSDs.
+SATA SSDs.
+Hard drives.
+Power supplies.
+PC cases.
+Air CPU coolers.
+Liquid CPU coolers.
+Case fans.
+Thermal paste.
+RGB accessories.
+Operating systems.
+Peripherals
+Monitors.
+Keyboards.
+Gaming mice.
+Headphones and headsets.
+Microphones.
+Mousepads.
+Speakers.
+Controllers.
+Allow customers to browse, search, filter, select, remove and replace components.
+Each category must show actual products from Centre Com.
+5B. Product information
+Every product must have:
+Correct product name.
+Manufacturer.
+Exact model.
+Technical specifications.
+Current AUD price.
+Current stock status, when available.
+Direct Centre Com product URL.
+Correct product photograph from its exact listing.
+Do not use:
+Placeholder products.
+Fake products.
+Invented prices.
+Invented stock information.
+Generic images.
+AI-generated product photos.
+Images of different models.
+Images from other retailers.
+Repeated images for different products.
+Every image must match the exact product.
+If the product cannot be verified, place it in an administrator review queue instead of displaying it to customers.
+5C. Real Centre Com catalogue integration
+Use the Centre Com website and its official product information to populate the builder.
+Prioritise the official Centre Com catalogue and the Custom PC Builder page:
+https://www.centrecom.com.au/
+https://www.centrecom.com.au/buildpc
+Do not leave the catalogue empty.
+Implement a working way to retrieve, update and store verified product information.
+Where an authorised feed or integration is available, use it.
+If no official API or feed is available, use a permitted method of retrieving product information and provide an administrator import and update system.
+Respect website access restrictions and rate limits. Do not bypass access controls.
+Do not pretend that a live product sync exists when it does not.
+Products must be stored in the database so the builder can load them reliably.
+5D. Product selection experience
+Customers should be able to:
+Open the custom PC builder.
+Choose a processor.
+Choose a compatible motherboard.
+Choose RAM.
+Choose storage.
+Choose a graphics card.
+Choose a case.
+Choose a power supply.
+Choose cooling.
+Add optional fans and accessories.
+Review the full build.
+Check compatibility.
+See the total price.
+Select an assembly package.
+Add the build to the cart.
+Show the actual product image, name, specifications and price for every selected component.
+Allow customers to change any component without losing their other selections.
+Show a running price total that updates immediately.
+6. AI-ASSISTED PC COMPATIBILITY CHECKER
+I specifically want the compatibility checking to use AI or an AI-assisted system.
+Build a proper compatibility checker that combines:
+Reliable technical compatibility rules.
+Actual component specifications.
+AI-assisted analysis and explanations.
+Do not rely on AI guessing or simply matching product names.
+The checker must analyse the actual specifications of the selected Centre Com products.
+6A. Automatic compatibility checks
+Run checks automatically when a customer selects or changes a component.
+Check:
+CPU and motherboard
+CPU socket.
+Motherboard socket.
+Chipset support.
+CPU generation support.
+BIOS version requirements.
+Whether a BIOS update may be needed.
+RAM and motherboard
+DDR4 versus DDR5.
+Supported memory type.
+Maximum memory capacity.
+Number of memory slots.
+Number of selected sticks.
+Supported memory speeds.
+Relevant memory compatibility information.
+Graphics card and case
+GPU length.
+GPU height and thickness where available.
+Case GPU clearance.
+Available PCIe connections.
+Power connector requirements.
+CPU cooler and case
+CPU socket support.
+Cooler height.
+Case cooler clearance.
+Radiator size.
+Radiator mounting positions.
+Fan compatibility.
+Power supply
+Estimated system power consumption.
+PSU wattage.
+Suitable power headroom.
+GPU power requirements.
+Required power connectors.
+Modern GPU power connector support.
+Motherboard and case
+ATX, Micro-ATX and Mini-ITX compatibility.
+Motherboard dimensions.
+Case motherboard support.
+Available expansion slots.
+Storage
+M.2 slot availability.
+NVMe support.
+SATA connections.
+Available storage connections.
+Potential slot-sharing limitations.
+Other checks
+Front-panel connectors.
+USB headers.
+Fan headers.
+Cooling connections.
+Operating system requirements where relevant.
+6B. AI compatibility assistant
+Implement an AI-assisted compatibility service.
+The AI must be able to:
+Read the selected component specifications.
+Compare component requirements.
+Identify possible conflicts.
+Explain compatibility issues in understandable language.
+Identify missing technical information.
+Suggest compatible Centre Com alternatives.
+Explain why an alternative is suitable.
+Recheck the build after a component is changed.
+The AI should use verified specifications from Centre Com product listings and manufacturer documentation where necessary.
+Do not allow the AI to invent missing specifications.
+If information is unavailable, say that it needs manual verification.
+6C. Compatibility results
+Display clear results:
+<escape>GREEN – Compatible</escape>
+The available specifications support compatibility.
+<escape>YELLOW – Needs Verification</escape>
+There is incomplete information or a possible issue that needs further checking.
+<escape>RED – Incompatible</escape>
+A confirmed technical conflict exists.
+Show the exact reason for each warning.
+For example:
+CPU socket does not match motherboard socket.
+DDR5 RAM cannot be installed in a DDR4-only motherboard.
+Graphics card is longer than the available case clearance.
+Power supply does not have the required connector.
+CPU may require a motherboard BIOS update.
+Never show a green compatible result just because no problem was found.
+6D. Evidence and accuracy
+For every important compatibility result, record:
+Components checked.
+Specifications used.
+Source URLs.
+Check date.
+Compatibility result.
+Explanation.
+Any unknown information.
+Separate confirmed incompatibilities from warnings and unknowns.
+AI must not override a confirmed hardware conflict.
+Do not claim that a PC is guaranteed to work just because the checker returned a compatible result.
+The system should be able to run a full compatibility check again whenever the build changes.
+6E. AI alternatives
+When a customer selects an incompatible component, suggest alternatives from the real Centre Com catalogue.
+For example:
+If a motherboard is incompatible with the selected CPU, recommend actual Centre Com motherboards that support that CPU.
+Show:
+Correct product image.
+Product name.
+Specifications.
+Current Centre Com price.
+Product page.
+Reason it is recommended.
+Never recommend a product that does not exist in the verified catalogue.
+6F. AI security
+Any AI API key must be stored securely on the server.
+Never expose it in frontend code or browser requests.
+Do not send customer passwords or unnecessary personal information to the AI service.
+If an AI service is unavailable, the normal technical compatibility checker must still work.
+7. AMD AND INTEL BRANDING
+Use separate branding for processor selection.
+AMD sections and cards: red theme.
+Intel sections and cards: blue theme.
+Use the correct existing logo assets.
+Intel logo:
+https://media.base44.com/images/public/6ad82e9d98c7f6fdc12bb981/d53f19b95_intel-white.png
+AMD logo:
+https://media.base44.com/images/public/6ad82e9d98c7f6fdc12bb981/5b9c67aa9_amd-white.png
+Keep the two brands independent.
+Do not reuse the wrong logo or distort their proportions.
+Remove processor-count labels from the processor selection cards.
+8. ASSEMBLY AND TESTING PACKAGES
+There must be exactly THREE options.
+MINIMUM ASSEMBLY – FASTEST
+Includes:
+Install components into the case.
+Connect necessary power and component cables.
+Basic cable management only.
+No detailed cable routing.
+No cosmetic cable organisation.
+No post-assembly testing package.
+This is the quickest assembly option.
+MEDIUM ASSEMBLY – COMPLETE
+Includes everything in Minimum Assembly, PLUS:
+Organised cable management.
+Proper cable routing, but not perfectly hidden.
+Check component connections.
+Check fans and cooling connections.
+Basic post-assembly boot testing.
+Confirm main components are recognised.
+The computer should be properly assembled and working, but the internal presentation does not need to be perfect.
+FULL ASSEMBLY & TESTING – PREMIUM
+Includes everything in Medium Assembly, PLUS:
+Carefully routed and organised cables.
+Clean, professional-looking internal presentation.
+Improved cable hiding and organisation.
+Full boot and component recognition checks.
+Temperature checks.
+Stress and stability testing.
+Crash and stability checks.
+Gaming performance testing.
+Gaming tests:
+Payday 2 – Low settings.
+Fortnite – Medium settings.
+Red Dead Redemption 2 – Maximum settings.
+Record actual average, minimum and maximum FPS when measurable.
+Never invent test results.
+Package functionality
+Use a working dropdown.
+Display package descriptions and inclusions.
+Allow only one selected package.
+Display the package in the cart and checkout.
+Update totals automatically.
+Allow administrators to edit package pricing and descriptions.
+Do not invent prices.
+9. CART AND CHECKOUT
+Create a fully functional cart.
+Customers must be able to:
+Add custom PC builds.
+Add individual components.
+Add peripherals.
+Change quantities.
+Remove products.
+Change selected components.
+Change assembly packages.
+See updated totals.
+Show product photographs, names and prices.
+Before adding a custom PC to the cart, display:
+"Before adding your PC to cart! Have you remembered your peripherals? Your custom-built PC includes the computer only. Peripherals are NOT included."
+Show Monitor, Keyboard, Mouse, Headphones and Microphone.
+YES and NO buttons:
+NO returns the customer to the builder and preserves their configuration.
+YES continues after a 3-second countdown.
+For prebuilt PCs, show the warning only after the customer opens the details of a selected prebuilt PC, not when browsing the category.
+10. ORDER TRACKING
+Create a real database-backed order tracking system.
+Every order must include:
+Unique order number.
+Customer information.
+Selected components.
+Assembly package.
+Total price.
+Payment status.
+Job status.
+Estimated completion date, when known.
+Order stages:
+Order received.
+Order confirmed.
+Parts being sourced.
+Waiting for parts.
+All parts received.
+Assembly started.
+PC assembly completed.
+Post-build testing.
+Stress testing.
+Gaming FPS testing.
+Final quality check.
+Ready for collection or dispatch.
+Completed or collected.
+Only authorised administrators can change order stages.
+Customers can view only their own orders.
+11. INDIVIDUAL PART AND DELIVERY TRACKING
+For every component, record:
+Product name and model.
+Manufacturer.
+Required quantity.
+Received quantity.
+Supplier.
+Supplier order number.
+Purchase price.
+Purchase date.
+Expected arrival.
+Actual arrival.
+Tracking number.
+Current status.
+Statuses:
+Needed.
+Ready to order.
+Ordered.
+Dispatched.
+In transit.
+Delivered.
+Received and checked.
+Missing.
+Damaged.
+Cancelled.
+Customers may see their part arrival progress but must not see private supplier details or internal costs.
+12. PROPER ADMINISTRATOR DASHBOARD
+Create a private, modern administrator dashboard.
+Sections:
+Overview
+Active orders.
+Orders waiting for parts.
+Parts received.
+PCs being assembled.
+PCs being tested.
+Completed orders.
+Ready for collection.
+Customers
+Genuine customer profiles.
+Customer contact information.
+Order history.
+Customer PC configurations.
+Orders
+Full order details.
+Payment status.
+Job progress.
+Administrator notes.
+Completion estimates.
+Products
+Centre Com catalogue.
+Add, edit and remove products.
+Update prices and stock.
+Review product photographs.
+Approve or reject product listings.
+Assembly
+Selected assembly package.
+Assembly progress.
+Completed checks.
+Actual testing results.
+Internal notes.
+Parts and deliveries
+Supplier orders.
+Tracking information.
+Arrival dates.
+Missing or damaged parts.
+Settings
+Assembly prices.
+Package descriptions.
+Product catalogue settings.
+Website settings.
+Notifications.
+Only authorised administrators can access this dashboard.
+13. DATABASE AND CUSTOMER PERMISSIONS
+Use a proper backend database.
+Create the necessary database structures for:
+Customers.
+Administrator roles.
+Products.
+Product specifications.
+Product images.
+PC builds.
+Selected components.
+Compatibility results.
+Assembly packages.
+Orders.
+Payments.
+Supplier orders.
+Deliveries.
+Job status history.
+Test results.
+Notifications.
+Use database-backed storage rather than temporary browser state.
+Customers may only access their own information and orders.
+Administrators may access all authorised management information.
+Enforce permissions on backend operations and database access. Hiding a button is not sufficient security.
+14. NOTIFICATIONS
+When email integration is available, send appropriate notifications for:
+Order confirmed.
+Parts ordered.
+Parts received.
+Assembly started.
+Testing completed.
+Ready for collection.
+Dispatched.
+Avoid sending duplicate notifications.
+Do not claim a notification was sent unless the system confirms it.
+15. FINAL TESTING – NOTHING SHOULD BE FAKE OR EMPTY
+Test the entire website from beginning to end.
+PC builder tests
+Load real Centre Com products.
+Open every component category.
+Search for parts.
+Select products.
+Change selections.
+Remove components.
+Check automatic compatibility.
+Run AI-assisted compatibility checks.
+Display warnings and alternatives.
+Calculate the full build price.
+Save and restore a build.
+Add the build to the cart.
+Admin tests
+Google Sign-In.
+Correct administrator permissions.
+Protected dashboard.
+Product management.
+Customer management.
+Order management.
+Assembly management.
+Supplier tracking.
+Customer tests
+Create a genuine customer account.
+Build a PC.
+Select an assembly package.
+Add peripherals.
+Checkout.
+Receive an order number.
+View order progress.
+Visual tests
+Compare the website against the original.
+Check desktop, tablet and mobile.
+Check all product images.
+Check logo and favicon.
+Check buttons, dropdowns and navigation.
+Do not use fake data to make the dashboard look populated.
+Do not claim a function is working unless you have actually tested it.
+16. FINAL REPORT
+When development is finished, give me a clear report covering:
+What original website sections were recreated.
+Which features were implemented.
+Whether the Centre Com product catalogue is populated.
+How many verified products were added.
+Whether product photographs were verified.
+Whether the PC builder works.
+Whether the AI compatibility checker works.
+Which compatibility checks are implemented.
+Whether the cart and checkout work.
+Whether Google Sign-In works.
+Whether the admin dashboard is protected.
+Whether order tracking works.
+Which features remain incomplete.
+Any Centre Com integration limitations.
+Any products held back for verification.
+Clearly distinguish completed and tested features from incomplete ones.
+FINAL PRIORITIES
+Recreate the original QTR website accurately.
+Make the PC builder fully functional.
+Populate it with real Centre Com products.
+Implement accurate hardware compatibility checking with AI assistance.
+Make the cart and checkout work.
+Implement secure Google administrator login.
+Remove fake people and demonstration data.
+Complete the administrator dashboard.
+Implement real order and parts tracking.
+Preserve all existing work and protect my GitHub and Vercel projects.
+THE MOST IMPORTANT REQUIREMENT: I do not want a PC builder that looks finished but has no parts. I need customers to be able to select real Centre Com components, have the system check whether they work together, see accurate prices and build a complete PC directly on my QTR website.
+Gemini 4 Hydrogen
+Ran for 1s
+Quota limits exceeded
+I made some changes.
+Manual edit
+Edited 2 files
+index.html
+public/favicon.png
+Checkpoint
+QTR – COMPLETE WEBSITE DEVELOPMENT AND FUNCTIONAL PC BUILDER MASTER PROMPT
+I want you to develop and complete my QTR (Quick Tech Repairs) website inside my existing Google AI Studio project.
+This is a full development task, not just a visual mockup.
+I need a fully functional website with a real PC parts catalogue, custom PC builder, AI-assisted compatibility checker, administrator dashboard, Google authentication, customer accounts and order tracking.
+Do not just create the appearance of these features. Implement their actual functionality, database connections, backend operations and security.
+1. IMPORTANT PROJECT PROTECTION
+My existing projects must remain untouched.
+Existing website for visual reference
+https://ab-qtr.base44.app/
+Use this website to recreate the original QTR design and functionality as accurately as possible.
+Existing second website
+https://qtr-ecru.vercel.app/
+This website and its existing GitHub repository must remain unchanged.
+Strict protection rules
+Do not edit, delete or overwrite files in my existing GitHub repository.
+Do not create commits, branches or pushes to my existing repository.
+Do not change GitHub settings, secrets or workflows.
+Do not modify my existing Vercel project or deployment.
+Do not change the second website's code, design, content, database, favicon, logo or functionality.
+Do not connect Google AI Studio to my existing repository with write access.
+Do not overwrite my existing work.
+All development must happen inside my current Google AI Studio project.
+Do not use Base44 as the development platform. The Base44 website is only a visual and functional reference.
+2. RECREATE THE ORIGINAL QTR WEBSITE
+Before adding new features, recreate the existing website as accurately as possible.
+Preserve:
+Layout.
+Colours.
+Fonts.
+Spacing.
+Header and navigation.
+Buttons.
+Cards.
+Sections.
+Backgrounds.
+Images and icons.
+Footer.
+Mobile and desktop layouts.
+Existing functionality.
+Do not redesign unrelated sections or remove existing working features.
+Compare the recreated website against the original on desktop, tablet and mobile.
+Official QTR logo
+Use my existing official QTR logo.
+Do not invent a new logo, substitute a generic icon or use typed text in its place.
+If the original image reference is inaccessible, ask me to upload the actual logo file.
+Favicon
+Retrieve the exact existing favicon from:
+https://qtr-ecru.vercel.app/
+You may inspect this website in read-only mode to retrieve its favicon.
+Copy the favicon into the new Google AI Studio project without changing the original website.
+Never invent a replacement favicon.
+3. REMOVE FAKE PEOPLE AND DEMONSTRATION DATA
+Remove fabricated:
+Customers.
+Customer accounts.
+Administrator accounts.
+Reviews and testimonials.
+Staff profiles.
+Customer photographs.
+Fake orders.
+Sample purchases.
+Invented statistics.
+Demonstration activity presented as real.
+Do not replace them with AI-generated people or fake photographs.
+Only show genuine customer information that has actually been provided.
+Inspect existing database records before deleting anything. Remove confirmed test records but preserve genuine customer information and orders.
+If unsure whether a record is genuine, flag it for administrator review.
+Never display invented customer counts, revenue, orders or reviews.
+4. SECURE GOOGLE ADMIN LOGIN
+I need a proper private administrator dashboard.
+Use Google Sign-In, preferably through Firebase Authentication if compatible with the project.
+Requirements:
+Authenticate through Google's official login process.
+Link administrator access to my specific Google account.
+Only my authorised Google account receives administrator permissions.
+Other Google accounts must not automatically become administrators.
+Do not allow the first person to sign in to become an administrator.
+Protect all administrator pages and backend operations.
+Use proper server-side authentication and authorisation.
+Do not expose passwords, secret keys or authentication tokens.
+Never store passwords in plain text.
+Never hardcode secret credentials in frontend code.
+I have not supplied my administrator email address yet.
+Ask me for the Google email address that should receive administrator access. Do not guess it.
+5. THE MOST IMPORTANT FEATURE – FULLY WORKING PC BUILDER
+My PC builder currently has no proper selection of parts.
+I need you to fix it completely.
+The PC builder must contain real, selectable Centre Com components. It must not be an empty interface or a demonstration with made-up products.
+Before development, inspect these websites:
+PCPartPicker
+https://pcpartpicker.com/
+Centre Com Custom PC Builder
+https://www.centrecom.com.au/buildpc
+Study both websites.
+Use PCPartPicker as a reference for:
+PC component categories.
+Component selection.
+Compatibility checking.
+Build summaries.
+Warnings and errors.
+Component filtering.
+Total price calculations.
+Build organisation.
+Use Centre Com's custom PC builder as a reference for:
+Centre Com component categories.
+Product selection.
+Local Australian product availability.
+PC building workflow.
+How customers select parts for a complete computer.
+Do not copy their proprietary code or pretend to have access to their private systems.
+Centre Com must be the exclusive retailer and product source for the QTR product catalogue.
+PCPartPicker is a reference for builder functionality and compatibility behaviour, not an alternative retailer or source of product prices.
+The QTR PC builder must work directly inside my website. Customers should not have to leave QTR to select their components.
+5A. Product categories
+Include these categories:
+Main components
+AMD Ryzen 3, 5, 7 and 9 processors.
+Intel Core i3, i5, i7 and i9 processors.
+NVIDIA GeForce RTX graphics cards.
+AMD Radeon RX graphics cards.
+AMD and Intel motherboards.
+DDR4 RAM.
+DDR5 RAM.
+NVMe SSDs.
+SATA SSDs.
+Hard drives.
+Power supplies.
+PC cases.
+Air CPU coolers.
+Liquid CPU coolers.
+Case fans.
+Thermal paste.
+RGB accessories.
+Operating systems.
+Peripherals
+Monitors.
+Keyboards.
+Gaming mice.
+Headphones and headsets.
+Microphones.
+Mousepads.
+Speakers.
+Controllers.
+Allow customers to browse, search, filter, select, remove and replace components.
+Each category must show actual products from Centre Com.
+5B. Product information
+Every product must have:
+Correct product name.
+Manufacturer.
+Exact model.
+Technical specifications.
+Current AUD price.
+Current stock status, when available.
+Direct Centre Com product URL.
+Correct product photograph from its exact listing.
+Do not use:
+Placeholder products.
+Fake products.
+Invented prices.
+Invented stock information.
+Generic images.
+AI-generated product photos.
+Images of different models.
+Images from other retailers.
+Repeated images for different products.
+Every image must match the exact product.
+If the product cannot be verified, place it in an administrator review queue instead of displaying it to customers.
+5C. Real Centre Com catalogue integration
+Use the Centre Com website and its official product information to populate the builder.
+Prioritise the official Centre Com catalogue and the Custom PC Builder page:
+https://www.centrecom.com.au/
+https://www.centrecom.com.au/buildpc
+Do not leave the catalogue empty.
+Implement a working way to retrieve, update and store verified product information.
+Where an authorised feed or integration is available, use it.
+If no official API or feed is available, use a permitted method of retrieving product information and provide an administrator import and update system.
+Respect website access restrictions and rate limits. Do not bypass access controls.
+Do not pretend that a live product sync exists when it does not.
+Products must be stored in the database so the builder can load them reliably.
+5D. Product selection experience
+Customers should be able to:
+Open the custom PC builder.
+Choose a processor.
+Choose a compatible motherboard.
+Choose RAM.
+Choose storage.
+Choose a graphics card.
+Choose a case.
+Choose a power supply.
+Choose cooling.
+Add optional fans and accessories.
+Review the full build.
+Check compatibility.
+See the total price.
+Select an assembly package.
+Add the build to the cart.
+Show the actual product image, name, specifications and price for every selected component.
+Allow customers to change any component without losing their other selections.
+Show a running price total that updates immediately.
+6. AI-ASSISTED PC COMPATIBILITY CHECKER
+I specifically want the compatibility checking to use AI or an AI-assisted system.
+Build a proper compatibility checker that combines:
+Reliable technical compatibility rules.
+Actual component specifications.
+AI-assisted analysis and explanations.
+Do not rely on AI guessing or simply matching product names.
+The checker must analyse the actual specifications of the selected Centre Com products.
+6A. Automatic compatibility checks
+Run checks automatically when a customer selects or changes a component.
+Check:
+CPU and motherboard
+CPU socket.
+Motherboard socket.
+Chipset support.
+CPU generation support.
+BIOS version requirements.
+Whether a BIOS update may be needed.
+RAM and motherboard
+DDR4 versus DDR5.
+Supported memory type.
+Maximum memory capacity.
+Number of memory slots.
+Number of selected sticks.
+Supported memory speeds.
+Relevant memory compatibility information.
+Graphics card and case
+GPU length.
+GPU height and thickness where available.
+Case GPU clearance.
+Available PCIe connections.
+Power connector requirements.
+CPU cooler and case
+CPU socket support.
+Cooler height.
+Case cooler clearance.
+Radiator size.
+Radiator mounting positions.
+Fan compatibility.
+Power supply
+Estimated system power consumption.
+PSU wattage.
+Suitable power headroom.
+GPU power requirements.
+Required power connectors.
+Modern GPU power connector support.
+Motherboard and case
+ATX, Micro-ATX and Mini-ITX compatibility.
+Motherboard dimensions.
+Case motherboard support.
+Available expansion slots.
+Storage
+M.2 slot availability.
+NVMe support.
+SATA connections.
+Available storage connections.
+Potential slot-sharing limitations.
+Other checks
+Front-panel connectors.
+USB headers.
+Fan headers.
+Cooling connections.
+Operating system requirements where relevant.
+6B. AI compatibility assistant
+Implement an AI-assisted compatibility service.
+The AI must be able to:
+Read the selected component specifications.
+Compare component requirements.
+Identify possible conflicts.
+Explain compatibility issues in understandable language.
+Identify missing technical information.
+Suggest compatible Centre Com alternatives.
+Explain why an alternative is suitable.
+Recheck the build after a component is changed.
+The AI should use verified specifications from Centre Com product listings and manufacturer documentation where necessary.
+Do not allow the AI to invent missing specifications.
+If information is unavailable, say that it needs manual verification.
+6C. Compatibility results
+Display clear results:
+<escape>GREEN – Compatible</escape>
+The available specifications support compatibility.
+<escape>YELLOW – Needs Verification</escape>
+There is incomplete information or a possible issue that needs further checking.
+<escape>RED – Incompatible</escape>
+A confirmed technical conflict exists.
+Show the exact reason for each warning.
+For example:
+CPU socket does not match motherboard socket.
+DDR5 RAM cannot be installed in a DDR4-only motherboard.
+Graphics card is longer than the available case clearance.
+Power supply does not have the required connector.
+CPU may require a motherboard BIOS update.
+Never show a green compatible result just because no problem was found.
+6D. Evidence and accuracy
+For every important compatibility result, record:
+Components checked.
+Specifications used.
+Source URLs.
+Check date.
+Compatibility result.
+Explanation.
+Any unknown information.
+Separate confirmed incompatibilities from warnings and unknowns.
+AI must not override a confirmed hardware conflict.
+Do not claim that a PC is guaranteed to work just because the checker returned a compatible result.
+The system should be able to run a full compatibility check again whenever the build changes.
+6E. AI alternatives
+When a customer selects an incompatible component, suggest alternatives from the real Centre Com catalogue.
+For example:
+If a motherboard is incompatible with the selected CPU, recommend actual Centre Com motherboards that support that CPU.
+Show:
+Correct product image.
+Product name.
+Specifications.
+Current Centre Com price.
+Product page.
+Reason it is recommended.
+Never recommend a product that does not exist in the verified catalogue.
+6F. AI security
+Any AI API key must be stored securely on the server.
+Never expose it in frontend code or browser requests.
+Do not send customer passwords or unnecessary personal information to the AI service.
+If an AI service is unavailable, the normal technical compatibility checker must still work.
+7. AMD AND INTEL BRANDING
+Use separate branding for processor selection.
+AMD sections and cards: red theme.
+Intel sections and cards: blue theme.
+Use the correct existing logo assets.
+Intel logo:
+https://media.base44.com/images/public/6ad82e9d98c7f6fdc12bb981/d53f19b95_intel-white.png
+AMD logo:
+https://media.base44.com/images/public/6ad82e9d98c7f6fdc12bb981/5b9c67aa9_amd-white.png
+Keep the two brands independent.
+Do not reuse the wrong logo or distort their proportions.
+Remove processor-count labels from the processor selection cards.
+8. ASSEMBLY AND TESTING PACKAGES
+There must be exactly THREE options.
+MINIMUM ASSEMBLY – FASTEST
+Includes:
+Install components into the case.
+Connect necessary power and component cables.
+Basic cable management only.
+No detailed cable routing.
+No cosmetic cable organisation.
+No post-assembly testing package.
+This is the quickest assembly option.
+MEDIUM ASSEMBLY – COMPLETE
+Includes everything in Minimum Assembly, PLUS:
+Organised cable management.
+Proper cable routing, but not perfectly hidden.
+Check component connections.
+Check fans and cooling connections.
+Basic post-assembly boot testing.
+Confirm main components are recognised.
+The computer should be properly assembled and working, but the internal presentation does not need to be perfect.
+FULL ASSEMBLY & TESTING – PREMIUM
+Includes everything in Medium Assembly, PLUS:
+Carefully routed and organised cables.
+Clean, professional-looking internal presentation.
+Improved cable hiding and organisation.
+Full boot and component recognition checks.
+Temperature checks.
+Stress and stability testing.
+Crash and stability checks.
+Gaming performance testing.
+Gaming tests:
+Payday 2 – Low settings.
+Fortnite – Medium settings.
+Red Dead Redemption 2 – Maximum settings.
+Record actual average, minimum and maximum FPS when measurable.
+Never invent test results.
+Package functionality
+Use a working dropdown.
+Display package descriptions and inclusions.
+Allow only one selected package.
+Display the package in the cart and checkout.
+Update totals automatically.
+Allow administrators to edit package pricing and descriptions.
+Do not invent prices.
+9. CART AND CHECKOUT
+Create a fully functional cart.
+Customers must be able to:
+Add custom PC builds.
+Add individual components.
+Add peripherals.
+Change quantities.
+Remove products.
+Change selected components.
+Change assembly packages.
+See updated totals.
+Show product photographs, names and prices.
+Before adding a custom PC to the cart, display:
+"Before adding your PC to cart! Have you remembered your peripherals? Your custom-built PC includes the computer only. Peripherals are NOT included."
+Show Monitor, Keyboard, Mouse, Headphones and Microphone.
+YES and NO buttons:
+NO returns the customer to the builder and preserves their configuration.
+YES continues after a 3-second countdown.
+For prebuilt PCs, show the warning only after the customer opens the details of a selected prebuilt PC, not when browsing the category.
+10. ORDER TRACKING
+Create a real database-backed order tracking system.
+Every order must include:
+Unique order number.
+Customer information.
+Selected components.
+Assembly package.
+Total price.
+Payment status.
+Job status.
+Estimated completion date, when known.
+Order stages:
+Order received.
+Order confirmed.
+Parts being sourced.
+Waiting for parts.
+All parts received.
+Assembly started.
+PC assembly completed.
+Post-build testing.
+Stress testing.
+Gaming FPS testing.
+Final quality check.
+Ready for collection or dispatch.
+Completed or collected.
+Only authorised administrators can change order stages.
+Customers can view only their own orders.
+11. INDIVIDUAL PART AND DELIVERY TRACKING
+For every component, record:
+Product name and model.
+Manufacturer.
+Required quantity.
+Received quantity.
+Supplier.
+Supplier order number.
+Purchase price.
+Purchase date.
+Expected arrival.
+Actual arrival.
+Tracking number.
+Current status.
+Statuses:
+Needed.
+Ready to order.
+Ordered.
+Dispatched.
+In transit.
+Delivered.
+Received and checked.
+Missing.
+Damaged.
+Cancelled.
+Customers may see their part arrival progress but must not see private supplier details or internal costs.
+12. PROPER ADMINISTRATOR DASHBOARD
+Create a private, modern administrator dashboard.
+Sections:
+Overview
+Active orders.
+Orders waiting for parts.
+Parts received.
+PCs being assembled.
+PCs being tested.
+Completed orders.
+Ready for collection.
+Customers
+Genuine customer profiles.
+Customer contact information.
+Order history.
+Customer PC configurations.
+Orders
+Full order details.
+Payment status.
+Job progress.
+Administrator notes.
+Completion estimates.
+Products
+Centre Com catalogue.
+Add, edit and remove products.
+Update prices and stock.
+Review product photographs.
+Approve or reject product listings.
+Assembly
+Selected assembly package.
+Assembly progress.
+Completed checks.
+Actual testing results.
+Internal notes.
+Parts and deliveries
+Supplier orders.
+Tracking information.
+Arrival dates.
+Missing or damaged parts.
+Settings
+Assembly prices.
+Package descriptions.
+Product catalogue settings.
+Website settings.
+Notifications.
+Only authorised administrators can access this dashboard.
+13. DATABASE AND CUSTOMER PERMISSIONS
+Use a proper backend database.
+Create the necessary database structures for:
+Customers.
+Administrator roles.
+Products.
+Product specifications.
+Product images.
+PC builds.
+Selected components.
+Compatibility results.
+Assembly packages.
+Orders.
+Payments.
+Supplier orders.
+Deliveries.
+Job status history.
+Test results.
+Notifications.
+Use database-backed storage rather than temporary browser state.
+Customers may only access their own information and orders.
+Administrators may access all authorised management information.
+Enforce permissions on backend operations and database access. Hiding a button is not sufficient security.
+14. NOTIFICATIONS
+When email integration is available, send appropriate notifications for:
+Order confirmed.
+Parts ordered.
+Parts received.
+Assembly started.
+Testing completed.
+Ready for collection.
+Dispatched.
+Avoid sending duplicate notifications.
+Do not claim a notification was sent unless the system confirms it.
+15. FINAL TESTING – NOTHING SHOULD BE FAKE OR EMPTY
+Test the entire website from beginning to end.
+PC builder tests
+Load real Centre Com products.
+Open every component category.
+Search for parts.
+Select products.
+Change selections.
+Remove components.
+Check automatic compatibility.
+Run AI-assisted compatibility checks.
+Display warnings and alternatives.
+Calculate the full build price.
+Save and restore a build.
+Add the build to the cart.
+Admin tests
+Google Sign-In.
+Correct administrator permissions.
+Protected dashboard.
+Product management.
+Customer management.
+Order management.
+Assembly management.
+Supplier tracking.
+Customer tests
+Create a genuine customer account.
+Build a PC.
+Select an assembly package.
+Add peripherals.
+Checkout.
+Receive an order number.
+View order progress.
+Visual tests
+Compare the website against the original.
+Check desktop, tablet and mobile.
+Check all product images.
+Check logo and favicon.
+Check buttons, dropdowns and navigation.
+Do not use fake data to make the dashboard look populated.
+Do not claim a function is working unless you have actually tested it.
+16. FINAL REPORT
+When development is finished, give me a clear report covering:
+What original website sections were recreated.
+Which features were implemented.
+Whether the Centre Com product catalogue is populated.
+How many verified products were added.
+Whether product photographs were verified.
+Whether the PC builder works.
+Whether the AI compatibility checker works.
+Which compatibility checks are implemented.
+Whether the cart and checkout work.
+Whether Google Sign-In works.
+Whether the admin dashboard is protected.
+Whether order tracking works.
+Which features remain incomplete.
+Any Centre Com integration limitations.
+Any products held back for verification.
+Clearly distinguish completed and tested features from incomplete ones.
+FINAL PRIORITIES
+Recreate the original QTR website accurately.
+Make the PC builder fully functional.
+Populate it with real Centre Com products.
+Implement accurate hardware compatibility checking with AI assistance.
+Make the cart and checkout work.
+Implement secure Google administrator login.
+Remove fake people and demonstration data.
+Complete the administrator dashboard.
+Implement real order and parts tracking.
+Preserve all existing work and protect my GitHub and Vercel projects.
+THE MOST IMPORTANT REQUIREMENT: I do not want a PC builder that looks finished but has no parts. I need customers to be able to select real Centre Com components, have the system check whether they work together, see accurate prices and build a complete PC directly on my QTR website.
