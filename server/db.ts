@@ -336,51 +336,157 @@ function migrateOrderRecord(order: any): PcOrder {
   };
 }
 
-export function initDatabase(): DatabaseSchema {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+
+let firestoreInstance: Firestore | null = null;
+
+function getAdminFirestore(): Firestore {
+  if (firestoreInstance) return firestoreInstance;
+  const rawCredentials = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!rawCredentials) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is required. Add the Firebase service-account JSON as a Vercel environment variable.');
   }
 
-  if (!fs.existsSync(DB_FILE)) {
-    fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
+  let serviceAccount: { project_id?: string; client_email?: string; private_key?: string };
+  try { serviceAccount = JSON.parse(rawCredentials); }
+  catch { throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON.'); }
+
+  if (!serviceAccount.project_id || !serviceAccount.client_email || !serviceAccount.private_key) {
+    throw new Error('Firebase service-account JSON is missing project_id, client_email, or private_key.');
+  }
+
+  const appName = 'qtr-firestore-admin';
+  const existingApp = getApps().find((app) => app.name === appName);
+  const app = existingApp || initializeApp({
+    credential: cert({
+      projectId: serviceAccount.project_id,
+      clientEmail: serviceAccount.client_email,
+      privateKey: serviceAccount.private_key.replace(/\\n/g, '\n')
+    }),
+    projectId: serviceAccount.project_id
+  }, appName);
+
+  const databaseId = process.env.FIREBASE_DATABASE_ID ||
+    'ai-studio-qtrquicktechrepa-bcb626ae-4919-4ec7-815e-49e711816199';
+  firestoreInstance = getFirestore(app, databaseId);
+  firestoreInstance.settings({ ignoreUndefinedProperties: true });
+  return firestoreInstance;
+}
+
+type CollectionRecord = { id: string; [key: string]: any };
+
+async function readCollection<T extends CollectionRecord>(name: string): Promise<T[]> {
+  const snapshot = await getAdminFirestore().collection(name).get();
+  return snapshot.docs.map((document) => ({ ...document.data(), id: document.id } as T));
+}
+
+async function replaceCollection(
+  writer: FirebaseFirestore.BulkWriter,
+  name: string,
+  records: CollectionRecord[]
+): Promise<void> {
+  const collection = getAdminFirestore().collection(name);
+  const existing = await collection.get();
+  const nextIds = new Set(records.map((record) => String(record.id)).filter(Boolean));
+  for (const document of existing.docs) {
+    if (!nextIds.has(document.id)) writer.delete(document.ref);
+  }
+  for (const record of records) {
+    if (!record.id || typeof record.id !== 'string') {
+      throw new Error(`Cannot save a ${name} record without a string id.`);
+    }
+    writer.set(collection.doc(record.id), record);
+  }
+}
+
+export async function initDatabase(): Promise<DatabaseSchema> {
+  const db = getAdminFirestore();
+  const current = await readDatabase();
+  const hasAnyRecords =
+    current.reviews.length > 0 ||
+    current.repairRequests.length > 0 ||
+    current.upgradeRequests.length > 0 ||
+    current.customPcQuotes.length > 0 ||
+    current.contactMessages.length > 0 ||
+    current.pcOrders.length > 0 ||
+    current.cheaperPriceRequests.length > 0 ||
+    current.customerSuppliedMotherboards.length > 0 ||
+    current.assemblyPackages.length > 0;
+
+  if (!hasAnyRecords) {
+    await writeDatabase(initialData);
     return initialData;
   }
 
+  const shippingRef = db.collection('qtrConfig').doc('shipping');
+  const notificationRef = db.collection('qtrConfig').doc('notifications');
+  const [shippingSnapshot, notificationSnapshot] = await Promise.all([
+    shippingRef.get(), notificationRef.get()
+  ]);
+  if (!shippingSnapshot.exists) await shippingRef.set(initialData.shippingConfig);
+  if (!notificationSnapshot.exists) await notificationRef.set(initialData.notificationSettings);
+  if (current.assemblyPackages.length === 0) {
+    const writer = db.bulkWriter();
+    await replaceCollection(writer, 'assemblyPackages', initialData.assemblyPackages as CollectionRecord[]);
+    await writer.close();
+  }
+  return readDatabase();
+}
+
+export async function readDatabase(): Promise<DatabaseSchema> {
+  const db = getAdminFirestore();
+  const [
+    reviews, repairRequests, upgradeRequests, customPcQuotes, contactMessages,
+    pcOrders, assemblyPackages, cheaperPriceRequests, customerSuppliedMotherboards,
+    shippingSnapshot, notificationSnapshot
+  ] = await Promise.all([
+    readCollection<Review>('reviews'),
+    readCollection<RepairRequest>('repairRequests'),
+    readCollection<UpgradeRequest>('upgradeRequests'),
+    readCollection<CustomPcQuote>('customPcQuotes'),
+    readCollection<ContactMessage>('contactMessages'),
+    readCollection<any>('pcOrders'),
+    readCollection<AssemblyPackage & { id: string }>('assemblyPackages'),
+    readCollection<CheaperPriceRequest>('cheaperPriceRequests'),
+    readCollection<CustomerSuppliedMotherboardRecord>('customerSuppliedMotherboards'),
+    db.collection('qtrConfig').doc('shipping').get(),
+    db.collection('qtrConfig').doc('notifications').get()
+  ]);
+
+  return {
+    reviews, repairRequests, upgradeRequests, customPcQuotes, contactMessages,
+    pcOrders: pcOrders.map(migrateOrderRecord),
+    shippingConfig: shippingSnapshot.exists ? shippingSnapshot.data() as ShippingConfig : initialData.shippingConfig,
+    assemblyPackages: assemblyPackages.length > 0 ? assemblyPackages : DEFAULT_ASSEMBLY_PACKAGES,
+    notificationSettings: notificationSnapshot.exists ? notificationSnapshot.data() as NotificationSettings : createDefaultNotificationSettings(),
+    cheaperPriceRequests, customerSuppliedMotherboards
+  };
+}
+
+export async function writeDatabase(data: DatabaseSchema): Promise<void> {
+  const db = getAdminFirestore();
+  const writer = db.bulkWriter();
   try {
-    const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    const parsed = JSON.parse(raw);
-    const merged: DatabaseSchema = {
-      reviews: parsed.reviews || initialData.reviews,
-      repairRequests: parsed.repairRequests || initialData.repairRequests,
-      upgradeRequests: parsed.upgradeRequests || initialData.upgradeRequests,
-      customPcQuotes: parsed.customPcQuotes || [],
-      contactMessages: parsed.contactMessages || [],
-      pcOrders: (parsed.pcOrders || initialData.pcOrders).map(migrateOrderRecord),
-      shippingConfig: parsed.shippingConfig || initialData.shippingConfig,
-      assemblyPackages: Array.isArray(parsed.assemblyPackages) && parsed.assemblyPackages.length > 0
-        ? parsed.assemblyPackages
-        : DEFAULT_ASSEMBLY_PACKAGES,
-      notificationSettings: parsed.notificationSettings || createDefaultNotificationSettings(),
-      cheaperPriceRequests: parsed.cheaperPriceRequests || initialData.cheaperPriceRequests,
-      customerSuppliedMotherboards: parsed.customerSuppliedMotherboards || []
-    };
-    return merged;
-  } catch (err) {
-    console.error('Failed to parse db.json, recreating with initial data', err);
-    fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
-    return initialData;
+    await Promise.all([
+      replaceCollection(writer, 'reviews', data.reviews as CollectionRecord[]),
+      replaceCollection(writer, 'repairRequests', data.repairRequests as CollectionRecord[]),
+      replaceCollection(writer, 'upgradeRequests', data.upgradeRequests as CollectionRecord[]),
+      replaceCollection(writer, 'customPcQuotes', data.customPcQuotes as CollectionRecord[]),
+      replaceCollection(writer, 'contactMessages', data.contactMessages as CollectionRecord[]),
+      replaceCollection(writer, 'pcOrders', data.pcOrders as CollectionRecord[]),
+      replaceCollection(writer, 'assemblyPackages', data.assemblyPackages as CollectionRecord[]),
+      replaceCollection(writer, 'cheaperPriceRequests', data.cheaperPriceRequests as CollectionRecord[]),
+      replaceCollection(writer, 'customerSuppliedMotherboards', data.customerSuppliedMotherboards as CollectionRecord[])
+    ]);
+    await Promise.all([
+      db.collection('qtrConfig').doc('shipping').set(data.shippingConfig),
+      db.collection('qtrConfig').doc('notifications').set(data.notificationSettings)
+    ]);
+    await writer.close();
+  } catch (error) {
+    await writer.close().catch(() => undefined);
+    throw error;
   }
-}
-
-export function readDatabase(): DatabaseSchema {
-  return initDatabase();
-}
-
-export function writeDatabase(data: DatabaseSchema): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
-  fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf-8');
-  fs.renameSync(tempFile, DB_FILE);
 }
