@@ -1,7 +1,7 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import {
@@ -2957,4 +2957,14 @@ async function startServer() {
   });
 }
 
-startServer();
+// Export the Express application for Vercel's serverless function entrypoint.
+// Only start a listening server when this file is executed directly (local dev).
+export default app;
+
+const isDirectExecution =
+  Boolean(process.argv[1]) &&
+  pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
+
+if (isDirectExecution) {
+  void startServer();
+}
